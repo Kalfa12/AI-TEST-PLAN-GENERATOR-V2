@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Test Plan Generator — Architecture Diagrams</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+  <style>
+    :root {
+      --blue-dark: #1a3a5c;
+      --blue:      #2980b9;
+      --green:     #27ae60;
+      --bg:        #f4f8fc;
+      --card-bg:   #ffffff;
+      --text:      #2c3e50;
+      --border:    #d0dce8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 40px 20px 80px;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 48px;
+      padding: 40px 24px;
+      background: var(--blue-dark);
+      border-radius: 16px;
+      color: white;
+    }
+    header h1 { font-size: 2rem; letter-spacing: 0.02em; }
+    header p  { margin-top: 10px; opacity: 0.75; font-size: 1rem; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(640px, 1fr));
+      gap: 32px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px 28px 36px;
+      box-shadow: 0 2px 12px rgba(26,58,92,.07);
+    }
+    .card.full { grid-column: 1 / -1; }
+    .card h2 {
+      font-size: 1.05rem;
+      color: var(--blue-dark);
+      border-left: 4px solid var(--blue);
+      padding-left: 12px;
+      margin-bottom: 8px;
+    }
+    .card .subtitle {
+      font-size: 0.82rem;
+      color: #666;
+      margin-bottom: 20px;
+      padding-left: 16px;
+    }
+    .mermaid {
+      display: flex;
+      justify-content: center;
+      overflow-x: auto;
+    }
+    /* Override Mermaid default text size inside cards */
+    .mermaid svg { font-size: 13px !important; }
+    .legend {
+      margin-top: 16px;
+      padding: 12px 16px;
+      background: #f0f6ff;
+      border-radius: 8px;
+      font-size: 0.8rem;
+      color: #444;
+      line-height: 1.6;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--blue);
+      color: white;
+      border-radius: 10px;
+      padding: 1px 9px;
+      font-size: 0.72rem;
+      margin-right: 4px;
+    }
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      font-size: 0.8rem;
+      color: #888;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>AI Test Plan Generator</h1>
+  <p>Architecture Diagrams — Projet P5 · SIGMAXIS × ENSAM · 2025</p>
+</header>
+
+<div class="grid">
+
+  <!-- ── 1. Architecture globale ─────────────────────────────────────── -->
+  <div class="card full">
+    <h2>1 · Architecture Globale du Système</h2>
+    <p class="subtitle">Vue d'ensemble des couches — des fichiers sources aux livrables.</p>
+    <div class="mermaid">
+flowchart LR
+    subgraph SRC["Sources d'entrée"]
+        direction TB
+        P1[PDF]
+        P2[DOCX]
+        P3[XLSX]
+        P4[MD / TXT]
+    end
+
+    subgraph ING["Pipeline d'Ingestion"]
+        direction TB
+        LD["Loaders\nStreamés"]
+        CH["Chunker\nHiérarchique"]
+        EX["Extracteur\nd'Exigences\nmap-reduce LLM"]
+        LD --> CH --> EX
+    end
+
+    subgraph MEM["Mémoire Multi-Niveaux"]
+        direction TB
+        WM["Working Memory\n(volatile / TTL)"]
+        EP["Mémoire Épisodique\n(journal ordonné)"]
+        SM["Mémoire Sémantique\n(Vector Store)"]
+        GR["Graphe Cross-Document\n(Traçabilité)"]
+    end
+
+    subgraph LLM["LLM Gateway — Agnostique"]
+        direction TB
+        GT["LiteLLM\nProtocol"]
+        M1["claude-opus\n(Anthropic)"]
+        M2["gpt-5\n(OpenAI)"]
+        M3["gemini-2.5\n(Google)"]
+        M4["llama3\n(Local)"]
+        GT --> M1 & M2 & M3 & M4
+    end
+
+    subgraph BRAIN["Cerveau IA — 9 Agents Spécialisés"]
+        direction TB
+        ORC["Orchestrateur\nSuperviseur"]
+        AG1["Analyste"]
+        AG2["Extracteur"]
+        AG3["Architecte"]
+        AG4["Générateur"]
+        AG5["Traçabilité"]
+        AG6["Réviseur"]
+        AG7["Planificateur"]
+        AG8["Copilot"]
+    end
+
+    subgraph OUT["Livrables"]
+        direction TB
+        O1["Plan de Test\nRésumé / Détaillé"]
+        O2["Matrice de\nCouverture"]
+        O3["Planning &\nJalons"]
+        O4["Chatbot\nInteractif"]
+    end
+
+    SRC --> ING --> MEM
+    MEM <--> BRAIN
+    LLM <--> BRAIN
+    BRAIN --> OUT
+
+    style ORC fill:#1a3a5c,color:#fff
+    style GT  fill:#1a3a5c,color:#fff
+    </div>
+    <div class="legend">
+      <span class="badge">Sources</span> PDF, DOCX, XLSX, Markdown, TXT — chargés en streaming pour supporter les documents industriels massifs (10 000+ pages).
+      <span class="badge">Gateway LLM</span> Une seule variable d'env pour changer de fournisseur IA — zéro modification de code.
+    </div>
+  </div>
+
+  <!-- ── 2. Topologie multi-agents ──────────────────────────────────── -->
+  <div class="card full">
+    <h2>2 · Topologie Multi-Agents (Supervisor Pattern)</h2>
+    <p class="subtitle">L'orchestrateur route dynamiquement vers chaque agent spécialisé. La boucle reviewer → generator est bornée par un budget de révisions.</p>
+    <div class="mermaid">
+flowchart TD
+    START([Entrée : objectif + documents]) --> ORC
+
+    ORC{{"Orchestrateur\n(Superviseur)"}}
+
+    ORC -->|corpus non résumé| AN["Analyste\nDocumentaire"]
+    ORC -->|exigences manquantes| EX["Extracteur\nd'Exigences"]
+    ORC -->|plan vide| AR["Architecte\nde Tests"]
+    ORC -->|cas de test manquants| GN["Générateur\nde Cas de Test"]
+    ORC -->|traçabilité non validée| TR["Agent de\nTraçabilité"]
+    ORC -->|review en attente| RV["Réviseur\nQualité"]
+    RV -->|critical / major findings| ORC
+    ORC -->|approuvé| PL["Planificateur\n(Gantt / Ressources)"]
+    PL --> ORC
+    ORC -->|planifié| END([Plan Final Complet])
+
+    AN --> ORC
+    EX --> ORC
+    AR --> ORC
+    GN --> ORC
+    TR --> ORC
+
+    style ORC fill:#1a3a5c,color:#fff,stroke:#0d2438
+    style END fill:#27ae60,color:#fff
+    style START fill:#2980b9,color:#fff
+    style RV  fill:#c0392b,color:#fff
+    </div>
+    <div class="legend">
+      <strong>Fast paths procéduraux :</strong> L'orchestrateur ne consume pas un appel LLM pour les décisions évidentes (pas de requirements → extractor). Le LLM est uniquement utilisé pour les branches ambiguës (faut-il relancer le generator ou passer au planner ?).
+    </div>
+  </div>
+
+  <!-- ── 3. Mémoire multi-niveaux ───────────────────────────────────── -->
+  <div class="card">
+    <h2>3 · Architecture Mémoire (4 Niveaux)</h2>
+    <p class="subtitle">Chaque niveau est une interface Protocol — swappable sans toucher au code des agents.</p>
+    <div class="mermaid">
+flowchart TD
+    subgraph T1["Tier 1 — Working Memory"]
+        WM["Scratchpad volatile (TTL)\n• Résumé corpus en cours\n• Draft plan courant\n• Sorties d'outils récentes"]
+    end
+    subgraph T2["Tier 2 — Mémoire Épisodique"]
+        EP["Journal de session ordonné\n• Chaque décision d'agent\n• Turns utilisateur\n• Findings réviseur\n• Erreurs"]
+    end
+    subgraph T3["Tier 3 — Mémoire Sémantique"]
+        VS["Vector Store (namespaces)\nchunks:general\nchunks:{project_id}\nrequirements:{project_id}\nlessons"]
+    end
+    subgraph T4["Tier 4 — Graphe Cross-Document"]
+        GR["NetworkX DiGraph (→ Neo4j)\nNœuds : Doc·Section·Chunk·Req·TC\nArêtes typées : derives_from\ncovers · refines · contradicts"]
+    end
+
+    T1 -.->|perd à la mort du process| T2
+    T2 -.->|recherche textuelle| T3
+    T3 -.->|ids → traversal| T4
+
+    style T1 fill:#fef9e7
+    style T2 fill:#eafaf1
+    style T3 fill:#eaf4fb
+    style T4 fill:#fdf2f8
+    </div>
+    <div class="legend">
+      In-memory par défaut. <strong>Tier 3</strong> → Qdrant / Chroma / pgvector · <strong>Tier 4</strong> → Neo4j / Memgraph — les interfaces existent, les adapters sont la prochaine étape.
+    </div>
+  </div>
+
+  <!-- ── 4. Pipeline ingestion ──────────────────────────────────────── -->
+  <div class="card">
+    <h2>4 · Pipeline d'Ingestion Streaming</h2>
+    <p class="subtitle">Conçu pour ne jamais charger un document entier en mémoire.</p>
+    <div class="mermaid">
+flowchart TD
+    F["Fichier source\n(PDF 10 000 pages)"]
+
+    F --> LD["Loader spécifique\n(pypdf / python-docx / openpyxl)"]
+
+    LD -->|"iterator lazy\nO(1 page) RAM"| BL
+
+    subgraph BL["Stream de RawBlocks"]
+        B1["heading (level 1-10)"]
+        B2["prose"]
+        B3["table (atomique)"]
+        B4["list_item"]
+        B5["code / formula (atomique)"]
+    end
+
+    BL --> CH
+
+    subgraph CH["Chunker Hiérarchique — 2 passes"]
+        P1["Pass 1 : Arbre de sections\n(numéros, titres, hiérarchie)"]
+        P2["Pass 2 : Packing token-bounded\n+ overlap phrase-aware\n+ blocs atomiques intacts"]
+        P1 --> P2
+    end
+
+    CH --> S["Sections\n(offsets char + pages)"]
+    CH --> C["Chunks\n(token-count + back-pointer)"]
+    C -->|"LLM fast-tier\nconcurrence ×16"| E["Exigences\n(déduplication cosinus)"]
+
+    E --> MEM[("Mémoire\n+ Graphe")]
+    C --> MEM
+
+    style F fill:#fdebd0
+    style MEM fill:#1a3a5c,color:#fff
+    </div>
+    <div class="legend">
+      <strong>Clé de scalabilité :</strong> chaque loader est un générateur Python — le chunker ne voit jamais qu'un block à la fois. L'extraction LLM est parallélisée avec un sémaphore borné (×16 concurrent).
+    </div>
+  </div>
+
+  <!-- ── 5. Traçabilité ─────────────────────────────────────────────── -->
+  <div class="card full">
+    <h2>5 · Graphe de Traçabilité Bout-en-Bout</h2>
+    <p class="subtitle">Chaque test case est résolvable jusqu'au byte exact dans le document source.</p>
+    <div class="mermaid">
+graph LR
+    DOC["Document\nspec_hydraulique_v3.pdf\n(scope: project)"]
+    SEC["Section 4.2\nInterface Hydraulique\n(level 2)"]
+    CH1["Chunk ch_a3b9\np.41-42 · 847 tokens"]
+    CH2["Chunk ch_b1c5\np.43 · 612 tokens"]
+    R1["Requirement req_7f2a\nkind: performance · priority: 2\nPression max 250 bar ± 2%"]
+    R2["Requirement req_3d8e\nkind: safety · priority: 1\nSoupape de sécurité ≤ 280 bar"]
+    TC1["TestCase tc_81c0\nTest pression nominale\nrisk_level: 4"]
+    TC2["TestCase tc_92a1\nTest déclenchement soupape\nrisk_level: 5"]
+    PLAN["TestPlan plan_f4a2\nQualification Système Hydraulique"]
+
+    DOC -->|"section"| SEC
+    SEC -->|"chunk"| CH1
+    SEC -->|"chunk"| CH2
+    CH1 -->|"derives_from"| R1
+    CH2 -->|"derives_from"| R2
+    R1 -->|"covers"| TC1
+    R2 -->|"covers"| TC2
+    TC1 -->|"derives_from"| PLAN
+    TC2 -->|"derives_from"| PLAN
+
+    style DOC fill:#1a3a5c,color:#fff
+    style R1  fill:#2980b9,color:#fff
+    style R2  fill:#c0392b,color:#fff
+    style TC1 fill:#27ae60,color:#fff
+    style TC2 fill:#27ae60,color:#fff
+    style PLAN fill:#8e44ad,color:#fff
+    </div>
+    <div class="legend">
+      <strong>Audit complet :</strong> <code>tc_81c0</code> → couvre <code>req_7f2a</code> → dérive de <code>ch_a3b9</code> → section 4.2 → <strong>page 41 de spec_hydraulique_v3.pdf</strong>.
+      Les arêtes sont typées : <code>derives_from</code> · <code>covers</code> · <code>refines</code> · <code>contradicts</code> · <code>duplicates</code>.
+    </div>
+  </div>
+
+  <!-- ── 6. Mode autonome ───────────────────────────────────────────── -->
+  <div class="card">
+    <h2>6 · Mode Autonome — LangGraph State Machine</h2>
+    <p class="subtitle">Fire-and-forget : l'utilisateur ingère des docs, l'IA génère le plan complet.</p>
+    <div class="mermaid">
+stateDiagram-v2
+    [*] --> Orchestrateur
+
+    Orchestrateur --> Analyste : corpus_summary absent
+    Orchestrateur --> Extracteur : requirements vides
+    Orchestrateur --> Architecte : plan absent
+    Orchestrateur --> Générateur : test_cases vides
+    Orchestrateur --> Traçabilité : trace_report absent
+    Orchestrateur --> Réviseur : review_report absent
+    Orchestrateur --> Planificateur : review ok
+    Orchestrateur --> [*] : finished=true
+
+    Analyste --> Orchestrateur
+    Extracteur --> Orchestrateur
+    Architecte --> Orchestrateur
+    Générateur --> Orchestrateur
+    Traçabilité --> Orchestrateur
+    Planificateur --> Orchestrateur
+
+    Réviseur --> Orchestrateur : findings critical/major\n+ budget révisions restant
+    Réviseur --> Orchestrateur : approuvé → route planner
+    </div>
+    <div class="legend">
+      Le budget de révisions (<code>max_revision_rounds</code>) garantit la terminaison. Chaque état est sérialisable — LangGraph peut checkpointer et reprendre après une interruption.
+    </div>
+  </div>
+
+  <!-- ── 7. Mode interactif ─────────────────────────────────────────── -->
+  <div class="card">
+    <h2>7 · Mode Interactif — Copilot Chatbot</h2>
+    <p class="subtitle">Chaque turn = un passage dans le graphe. Contexte grounded via retrieval hybride.</p>
+    <div class="mermaid">
+sequenceDiagram
+    actor U as Ingénieur
+    participant CP as CopilotAgent
+    participant MEM as MemoryManager
+    participant LLM as LLM Gateway
+
+    U->>CP: "Quels standards sont référencés ?"
+    CP->>MEM: retrieve(query, project_id)
+    Note over MEM: Semantic search (chunks + reqs)\n+ Graph neighbours
+    MEM-->>CP: chunks + requirements\n+ graph context
+    CP->>LLM: [system_prompt + grounding + history + user_msg]
+    LLM-->>CP: CopilotReply(message, citations, proposed_action)
+    CP->>MEM: log episodic (user turn + assistant turn)
+    CP-->>U: réponse + ["spec_v3.pdf p.41", "ISO 4413 §5.2"]
+
+    U->>CP: "Ajoute un test pour REQ-4.2.1"
+    CP-->>U: proposition + needs_confirmation=true
+    U->>CP: "Confirme"
+    CP->>MEM: register_test_case(...)
+    CP-->>U: "Test ajouté — tc_new9x"
+    </div>
+    <div class="legend">
+      Le retrieval est <strong>hybride</strong> : recherche vectorielle (similarité sémantique) + traversal graphe (liens structurels). Les mutations au plan nécessitent une confirmation explicite.
+    </div>
+  </div>
+
+  <!-- ── 8. Provider agnostic ───────────────────────────────────────── -->
+  <div class="card">
+    <h2>8 · Zero Vendor Lock-in — LLM Gateway Agnostique</h2>
+    <p class="subtitle">Les agents ne connaissent que le Protocol. LiteLLM résout le fournisseur à l'exécution.</p>
+    <div class="mermaid">
+flowchart TD
+    subgraph AGENTS["Agents (dépendent uniquement du Protocol)"]
+        A1["Orchestrateur\nrole=fast"] & A2["Générateur\nrole=balanced"] & A3["Réviseur\nrole=smart"]
+    end
+
+    subgraph PROTO["LLMGateway Protocol\n(interface abstraite)"]
+        P["complete(messages, role=...)\ncomplete_structured(messages, Schema)\nstream(...) · embed(texts)"]
+    end
+
+    subgraph GW["LiteLLMGateway (implémentation)"]
+        R["Résolution tier → model_id\nRetries exponentiels (tenacity)\nNormalisation réponses"]
+    end
+
+    subgraph PROV["Fournisseurs (choix par .env)"]
+        M1["Anthropic\nclaude-opus-4-1"]
+        M2["OpenAI\ngpt-5"]
+        M3["Google Vertex\ngemini-2.5-pro"]
+        M4["Local Ollama\nllama3.3 / qwen2.5"]
+        M5["AWS Bedrock\nclaude-3-5-sonnet"]
+    end
+
+    ENV[".env\nLLM_MODEL_SMART=gpt-5\nLLM_MODEL_BALANCED=...\nLLM_MODEL_FAST=..."]
+
+    AGENTS --> PROTO --> GW --> PROV
+    ENV -.->|configure| GW
+
+    style PROTO fill:#1a3a5c,color:#fff
+    style ENV   fill:#f39c12,color:#fff
+    </div>
+    <div class="legend">
+      <strong>Même design</strong> pour les stores : <code>SemanticStore</code> Protocol → InMemory (ref) → Qdrant / Chroma / pgvector. <code>CrossDocumentGraph</code> → NetworkX → Neo4j.
+    </div>
+  </div>
+
+  <!-- ── 9. Modèles de données ──────────────────────────────────────── -->
+  <div class="card full">
+    <h2>9 · Modèles de Données — Hiérarchie Pydantic</h2>
+    <p class="subtitle">Tous les artefacts sont typés statiquement (mypy strict) et sérialisables JSON.</p>
+    <div class="mermaid">
+classDiagram
+    class Document {
+        +id: str
+        +kind: DocumentKind
+        +title: str
+        +sha256: str
+        +scope: general|project
+        +project_id: str|None
+    }
+    class Section {
+        +id: str
+        +document_id: str
+        +number: str|None
+        +title: str
+        +level: int
+        +page_start: int|None
+        +char_start: int
+    }
+    class Chunk {
+        +id: str
+        +document_id: str
+        +section_id: str|None
+        +kind: ChunkKind
+        +text: str
+        +token_count: int
+        +page_start: int|None
+    }
+    class Requirement {
+        +id: str
+        +kind: RequirementKind
+        +statement: str
+        +priority: int
+        +source_chunk_ids: list[str]
+        +verbatim_excerpt: str|None
+    }
+    class TestCase {
+        +id: str
+        +title: str
+        +steps: list[TestStep]
+        +acceptance_criteria: list[AcceptanceCriterion]
+        +requirement_ids: list[str]
+        +risk_level: int
+    }
+    class TestPlan {
+        +id: str
+        +detail_level: summary|detailed
+        +scope: str
+        +strategy: str
+        +test_cases: list[TestCase]
+        +coverage_matrix: dict
+    }
+    class TraceLink {
+        +kind: derives_from|covers|refines|contradicts
+        +source_id: str
+        +target_id: str
+        +confidence: float
+    }
+
+    Document "1" --> "*" Section : contient
+    Section "1" --> "*" Chunk : découpe en
+    Chunk "1" --> "*" Requirement : source de
+    Requirement "1" --> "*" TestCase : couverte par
+    TestCase "*" --> "1" TestPlan : appartient à
+    TraceLink --> Chunk : target
+    TraceLink --> Requirement : target
+    TraceLink --> TestCase : source
+    </div>
+  </div>
+
+  <!-- ── 10. Stack technique ────────────────────────────────────────── -->
+  <div class="card full">
+    <h2>10 · Stack Technique & Avancement</h2>
+    <p class="subtitle">~4 200 lignes · 40 modules · 0 erreur de compilation · Python 3.11+</p>
+    <div class="mermaid">
+mindmap
+  root((AI Test Plan\nGenerator))
+    Orchestration
+      LangGraph 0.2
+        State machine typée
+        Checkpointing ready
+        Supervisor pattern
+      9 Agents spécialisés
+        Roles dédiés
+        Outputs structurés
+    LLM Gateway
+      LiteLLM 1.52
+        100+ providers
+        3 tiers smart-balanced-fast
+      Structured Output
+        JSON Schema enforced
+        Fallback tolerant parse
+    Ingestion
+      pypdf
+      python-docx
+      openpyxl read_only
+      Chunker hiérarchique
+        Sentence-aware overlap
+        Blocs atomiques
+    Mémoire
+      Working TTL
+      Episodique
+      Sémantique
+        numpy cosine ref
+        Qdrant-ready
+      Graphe
+        NetworkX ref
+        Neo4j-ready
+    Qualité
+      Pydantic v2 strict
+      mypy strict
+      structlog
+      tenacity retries
+    </div>
+  </div>
+
+</div><!-- /grid -->
+
+<footer>
+  SIGMAXIS × ENSAM — Projet P5 · AI Test Plan Generator · 2025
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'default',
+    themeVariables: {
+      primaryColor:       '#2980b9',
+      primaryTextColor:   '#1a3a5c',
+      primaryBorderColor: '#1a3a5c',
+      lineColor:          '#2980b9',
+      secondaryColor:     '#f4f8fc',
+      tertiaryColor:      '#eaf4fb',
+      fontFamily:         'Segoe UI, Arial, sans-serif',
+      fontSize:           '13px'
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+    sequence: { mirrorActors: false, fontSize: 13 }
+  });
+</script>
+</body>
+</html>

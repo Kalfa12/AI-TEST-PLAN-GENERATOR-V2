@@ -1,0 +1,56 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "ai-testplan-generator"
+version = "0.1.0"
+description = "Provider-agnostic multi-agent AI brain for industrial test plan generation"
+requires-python = ">=3.11"
+authors = [{ name = "SIGMAXIS x ENSAM Project 5" }]
+dependencies = [
+    # Universal LLM routing (provider-agnostic by design).
+    "litellm>=1.52.0",
+    # Multi-agent orchestration framework.
+    "langgraph>=0.2.55",
+    "langchain-core>=0.3.20",
+    # Data modelling + validation.
+    "pydantic>=2.8",
+    "pydantic-settings>=2.4",
+    # Ingestion.
+    "pypdf>=5.0",
+    "python-docx>=1.1.2",
+    "openpyxl>=3.1.5",
+    "markdown-it-py>=3.0",
+    # Numerics for in-memory vector store reference impl.
+    "numpy>=1.26",
+    # Graph store reference impl for cross-document memory.
+    "networkx>=3.3",
+    # Structured logging.
+    "structlog>=24.4",
+    "tenacity>=9.0",
+]
+
+[project.optional-dependencies]
+dev = ["mypy>=1.11", "ruff>=0.6", "pytest>=8.3", "pytest-asyncio>=0.24"]
+# Optional concrete backends (swap in later without touching the core).
+vector-qdrant = ["qdrant-client>=1.11"]
+vector-chroma = ["chromadb>=0.5"]
+loaders-extra = ["unstructured>=0.15", "pdfplumber>=0.11"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ai_testplan_generator"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "N", "SIM", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
