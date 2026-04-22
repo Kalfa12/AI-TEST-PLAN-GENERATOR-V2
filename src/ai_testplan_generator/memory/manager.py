@@ -85,10 +85,51 @@ class MemoryManager:
         self._llm = llm
         self._settings = settings or get_settings()
         self.working: WorkingMemory = working or WorkingMemory()
-        self.episodic: EpisodicStore = episodic or InMemoryEpisodicStore()
-        self.semantic: SemanticStore = semantic or InMemorySemanticStore()
-        self.graph: CrossDocumentGraph = graph or CrossDocumentGraph()
+        self.episodic: EpisodicStore = episodic or self._resolve_episodic()
+        self.semantic: SemanticStore = semantic or self._resolve_semantic()
+        self.graph: CrossDocumentGraph = graph or self._resolve_graph()  # type: ignore[assignment]
         self._store = _Artefacts()
+
+    def _resolve_semantic(self) -> SemanticStore:
+        """Pick the semantic store implementation based on config."""
+        backend = self._settings.semantic_memory_backend
+        if backend == "qdrant":
+            from ai_testplan_generator.memory.qdrant_store import QdrantSemanticStore
+
+            _log.info("semantic_backend", backend="qdrant", url=self._settings.qdrant_url)
+            return QdrantSemanticStore(
+                url=self._settings.qdrant_url,
+                api_key=self._settings.qdrant_api_key,
+                embedding_dim=self._settings.qdrant_embedding_dim,
+            )
+        # Default: in-memory.
+        return InMemorySemanticStore()
+
+    def _resolve_episodic(self) -> EpisodicStore:
+        """Pick the episodic store implementation based on config."""
+        backend = self._settings.episodic_memory_backend
+        if backend == "sqlite":
+            from ai_testplan_generator.memory.sqlite_store import SQLiteEpisodicStore
+
+            _log.info("episodic_backend", backend="sqlite", path=self._settings.sqlite_episodic_path)
+            return SQLiteEpisodicStore(db_path=self._settings.sqlite_episodic_path)
+        # Default: in-memory.
+        return InMemoryEpisodicStore()
+
+    def _resolve_graph(self) -> CrossDocumentGraph:
+        """Pick the graph store implementation based on config."""
+        backend = self._settings.crossdoc_graph_backend
+        if backend == "neo4j":
+            from ai_testplan_generator.memory.neo4j_store import Neo4jGraphStore
+
+            _log.info("graph_backend", backend="neo4j", uri=self._settings.neo4j_uri)
+            return Neo4jGraphStore(  # type: ignore[return-value]
+                uri=self._settings.neo4j_uri,
+                user=self._settings.neo4j_user,
+                password=self._settings.neo4j_password,
+            )
+        # Default: in-memory NetworkX.
+        return CrossDocumentGraph()
 
     # ---- registration (write-path) -------------------------------------------
 

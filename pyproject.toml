@@ -29,6 +29,10 @@ dependencies = [
     # Structured logging.
     "structlog>=24.4",
     "tenacity>=9.0",
+    # HTTP API layer.
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "python-multipart>=0.0.17",
 ]
 
 [project.optional-dependencies]
@@ -54,3 +58,7 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -1,0 +1,40 @@
+# Version control
+.git
+.gitignore
+
+# Virtual environments
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build artifacts
+*.egg-info
+dist/
+build/
+
+# Documentation / presentation (not needed in the container)
+*.pdf
+*.html
+presentation.md
+INTEGRATION.md
+TASKS.md
+
+# Docker (avoid recursive copies)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Environment files (injected at runtime, not baked in)
+.env

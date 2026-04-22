@@ -53,6 +53,19 @@ class Settings(BaseSettings):
         default="networkx", alias="CROSSDOC_GRAPH_BACKEND"
     )
 
+    # Qdrant settings (used when SEMANTIC_MEMORY_BACKEND=qdrant)
+    qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
+    qdrant_api_key: str | None = Field(default=None, alias="QDRANT_API_KEY")
+    qdrant_embedding_dim: int = Field(default=3072, alias="QDRANT_EMBEDDING_DIM")
+
+    # SQLite settings (used when EPISODIC_MEMORY_BACKEND=sqlite)
+    sqlite_episodic_path: str = Field(default="data/episodic.db", alias="SQLITE_EPISODIC_PATH")
+
+    # Neo4j settings (used when CROSSDOC_GRAPH_BACKEND=neo4j)
+    neo4j_uri: str = Field(default="bolt://localhost:7687", alias="NEO4J_URI")
+    neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
+    neo4j_password: str = Field(default="changeme", alias="NEO4J_PASSWORD")
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     @property
