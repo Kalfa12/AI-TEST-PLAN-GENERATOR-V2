@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     qdrant_url: str = Field(default="http://localhost:6333", alias="QDRANT_URL")
     qdrant_api_key: str | None = Field(default=None, alias="QDRANT_API_KEY")
     qdrant_embedding_dim: int = Field(default=3072, alias="QDRANT_EMBEDDING_DIM")
+    qdrant_collection_prefix: str = Field(default="aitpg", alias="QDRANT_COLLECTION_PREFIX")
 
     # SQLite settings (used when EPISODIC_MEMORY_BACKEND=sqlite)
     sqlite_episodic_path: str = Field(default="data/episodic.db", alias="SQLITE_EPISODIC_PATH")
@@ -65,6 +66,12 @@ class Settings(BaseSettings):
     neo4j_uri: str = Field(default="bolt://localhost:7687", alias="NEO4J_URI")
     neo4j_user: str = Field(default="neo4j", alias="NEO4J_USER")
     neo4j_password: str = Field(default="changeme", alias="NEO4J_PASSWORD")
+
+    # Blob store settings (M04)
+    blob_store_backend: Literal["local", "s3"] = Field(default="local", alias="BLOB_STORE_BACKEND")
+    blob_store_local_root: str = Field(default="./data/blobs", alias="BLOB_STORE_LOCAL_ROOT")
+    s3_bucket: str = Field(default="", alias="S3_BUCKET")
+    s3_region: str = Field(default="us-east-1", alias="S3_REGION")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 

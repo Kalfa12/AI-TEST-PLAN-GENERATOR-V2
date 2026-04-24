@@ -22,7 +22,7 @@ import networkx as nx
 from ai_testplan_generator.models.traceability import TraceKind, TraceLink
 
 
-class CrossDocumentGraph:
+class InMemoryCrossDocumentGraph:
     def __init__(self) -> None:
         self._g: nx.MultiDiGraph = nx.MultiDiGraph()
         self._lock = RLock()
@@ -106,4 +106,7 @@ class CrossDocumentGraph:
 
     def to_dict(self) -> dict[str, Any]:
         with self._lock:
-            return nx.readwrite.json_graph.node_link_data(self._g)
+            return nx.readwrite.json_graph.node_link_data(self._g)  # type: ignore[no-any-return]
+
+
+CrossDocumentGraph = InMemoryCrossDocumentGraph

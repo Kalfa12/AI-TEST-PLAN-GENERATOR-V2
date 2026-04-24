@@ -4,7 +4,7 @@ import pytest
 import pytest_asyncio
 
 from ai_testplan_generator.memory.base import EpisodeEvent, SearchHit
-from ai_testplan_generator.memory.cross_document import CrossDocumentGraph
+from ai_testplan_generator.memory.cross_document import InMemoryCrossDocumentGraph
 from ai_testplan_generator.memory.episodic import InMemoryEpisodicStore
 from ai_testplan_generator.memory.manager import MemoryManager
 from ai_testplan_generator.memory.semantic import InMemorySemanticStore
@@ -12,7 +12,7 @@ from ai_testplan_generator.memory.working import WorkingMemory
 from ai_testplan_generator.models.traceability import TraceKind, TraceLink
 from datetime import datetime, timezone
 
-from tests.conftest import (
+from conftest import (
     MockLLMGateway,
     make_chunk,
     make_document,
@@ -189,7 +189,7 @@ class TestInMemorySemanticStore:
 
 class TestCrossDocumentGraph:
     def test_add_node_and_neighbours(self):
-        g = CrossDocumentGraph()
+        g = InMemoryCrossDocumentGraph()
         g.add_node("doc_1", "Document", title="SRS")
         g.add_node("req_1", "Requirement", title="REQ-1")
         g.add_link(
@@ -206,7 +206,7 @@ class TestCrossDocumentGraph:
         assert nbrs[0][0] == "doc_1"
 
     def test_coverage_matrix(self):
-        g = CrossDocumentGraph()
+        g = InMemoryCrossDocumentGraph()
         g.add_node("req_1", "Requirement")
         g.add_node("tc_1", "TestCase")
         g.add_node("tc_2", "TestCase")
@@ -232,7 +232,7 @@ class TestCrossDocumentGraph:
         assert len(matrix["req_1"]) == 2
 
     def test_ancestors(self):
-        g = CrossDocumentGraph()
+        g = InMemoryCrossDocumentGraph()
         g.add_node("tc_1", "TestCase")
         g.add_node("req_1", "Requirement")
         g.add_node("ch_1", "Chunk")
@@ -254,7 +254,7 @@ class TestCrossDocumentGraph:
         assert "ch_1" in anc
 
     def test_ancestors_unknown_node(self):
-        g = CrossDocumentGraph()
+        g = InMemoryCrossDocumentGraph()
         assert g.ancestors("nonexistent") == []
 
 
