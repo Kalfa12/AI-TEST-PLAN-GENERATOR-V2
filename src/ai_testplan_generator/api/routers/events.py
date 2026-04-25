@@ -1,10 +1,7 @@
-"""SSE progress streaming + job status endpoints (M11).
+"""SSE progress streaming + job status endpoints (M11 / M17).
 
 GET /sessions/{session_id}/events   SSE stream of agent events
 GET /jobs/{job_id}                  Current job status snapshot
-
-Event broker: InMemoryEventBroker (in-process asyncio.Queue).
-# TODO: swap for Redis Pub/Sub broker (M18).
 """
 
 from __future__ import annotations
@@ -17,10 +14,10 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ai_testplan_generator.api.deps import get_event_broker, get_jobs
-from ai_testplan_generator.api.errors import NotFoundError
+from ai_testplan_generator.api.deps import get_event_broker, get_job_queue
 from ai_testplan_generator.api.jobs import Job
-from ai_testplan_generator.events.broker import InMemoryEventBroker
+from ai_testplan_generator.events.broker import EventBroker
+from ai_testplan_generator.jobs.queue import JobQueueProtocol
 
 _log = structlog.get_logger(__name__)
 
@@ -66,7 +63,7 @@ class JobStatusResponse(BaseModel):
 async def session_events(
     session_id: str,
     request: Request,
-    broker: Annotated[InMemoryEventBroker, Depends(get_event_broker)],
+    broker: Annotated[EventBroker, Depends(get_event_broker)],
 ) -> StreamingResponse:
     """Server-Sent Events stream. Subscribe before starting the job for full coverage."""
 
@@ -95,9 +92,7 @@ async def session_events(
 )
 async def get_job_status(
     job_id: str,
-    jobs: Annotated[dict[str, Job], Depends(get_jobs)],
+    job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
 ) -> JobStatusResponse:
-    job = jobs.get(job_id)
-    if job is None:
-        raise NotFoundError(f"Job '{job_id}' not found.")
+    job = await job_queue.get_status(job_id)
     return JobStatusResponse.from_job(job)

@@ -84,6 +84,36 @@ class Settings(BaseSettings):
     # Files larger than this threshold are backgrounded instead of inlined (M06).
     large_doc_threshold_bytes: int = Field(default=5 * 1024 * 1024, alias="LARGE_DOC_THRESHOLD_BYTES")
 
+    # JWT authentication settings (M13)
+    # Algorithm used to sign JWTs. RS256 requires JWT_PRIVATE_KEY_PATH + JWT_PUBLIC_KEY_PATH.
+    jwt_algorithm: str = Field(default="RS256", alias="JWT_ALGORITHM")
+    # Path to PEM-encoded RSA private key (RS256 mode). Leave blank to use HS256.
+    jwt_private_key_path: str | None = Field(default=None, alias="JWT_PRIVATE_KEY_PATH")
+    # Path to PEM-encoded RSA public key (RS256 mode). Leave blank to use HS256.
+    jwt_public_key_path: str | None = Field(default=None, alias="JWT_PUBLIC_KEY_PATH")
+    # Shared secret for HS256 fallback (local dev only). Must be set when no key paths given.
+    jwt_secret: str = Field(default="changeme-local-dev-only", alias="JWT_SECRET")
+    # Access token lifetime in seconds (default 15 min).
+    jwt_access_token_ttl_seconds: int = Field(default=900, alias="JWT_ACCESS_TOKEN_TTL_SECONDS")
+    # Refresh token lifetime in seconds (default 14 days).
+    jwt_refresh_token_ttl_seconds: int = Field(default=1209600, alias="JWT_REFRESH_TOKEN_TTL_SECONDS")
+
+    # Blob encryption at rest (M16)
+    # Base64url-encoded 32-byte Fernet key. When set, all blobs are envelope-encrypted.
+    blob_encryption_key: str | None = Field(default=None, alias="BLOB_ENCRYPTION_KEY")
+    # Key-encryption-key version prefix written into each blob key.
+    blob_kek_version: str = Field(default="v1", alias="BLOB_KEK_VERSION")
+
+    # Redis connection (M17/M18) — shared by ARQ job queue and event broker.
+    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    # Maximum concurrent ARQ worker jobs per worker process (M17).
+    job_worker_concurrency: int = Field(default=4, alias="JOB_WORKER_CONCURRENCY")
+
+    # Event broker backend (M18). Use "redis" in production with a running Redis instance.
+    event_broker_backend: Literal["inmemory", "redis"] = Field(
+        default="inmemory", alias="EVENT_BROKER_BACKEND"
+    )
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     @property

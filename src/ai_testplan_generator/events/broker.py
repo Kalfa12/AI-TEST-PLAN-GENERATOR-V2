@@ -1,20 +1,28 @@
-"""Event broker protocol and in-memory implementation.
+"""Event broker protocol and implementations (M11 / M18).
 
-# TODO: swap InMemoryEventBroker for Redis Pub/Sub broker (M18).
+InMemoryEventBroker  — asyncio.Queue-based, used in tests and local dev.
+RedisPubSubBroker    — Redis Pub/Sub, used in production (M18).
+build_event_broker() — factory that picks the right impl from settings.
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 from collections import defaultdict
 from collections.abc import AsyncIterator
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from ai_testplan_generator.config import Settings
 
 
 @runtime_checkable
 class EventBroker(Protocol):
     async def publish(self, topic: str, event: dict[str, Any]) -> None: ...
     async def subscribe(self, topic: str) -> AsyncIterator[dict[str, Any]]: ...
+    async def close_topic(self, topic: str) -> None: ...
+    async def close(self) -> None: ...
 
 
 _SENTINEL: dict[str, Any] = {"__done__": True}
@@ -55,3 +63,66 @@ class InMemoryEventBroker:
         """Signal all subscribers of a topic that the stream is done."""
         for q in list(self._subs.get(topic, [])):
             await q.put(_SENTINEL)
+
+    async def close(self) -> None:
+        """No-op — nothing to release for the in-memory broker."""
+
+
+# ---------------------------------------------------------------------------
+# M18 — Redis Pub/Sub broker
+# ---------------------------------------------------------------------------
+
+class RedisPubSubBroker:
+    """Redis Pub/Sub backed event broker for production use (M18).
+
+    Requires ``redis[asyncio]`` to be installed.
+    """
+
+    def __init__(self, redis_url: str) -> None:
+        import redis.asyncio as aioredis  # type: ignore[import-untyped]
+
+        self._redis: Any = aioredis.from_url(redis_url, decode_responses=True)
+
+    async def publish(self, topic: str, event: dict[str, Any]) -> None:
+        await self._redis.publish(topic, json.dumps(event))
+
+    async def subscribe(self, topic: str) -> AsyncIterator[dict[str, Any]]:
+        import redis.asyncio as aioredis  # type: ignore[import-untyped]
+
+        pubsub: Any = self._redis.pubsub()
+        await pubsub.subscribe(topic)
+        try:
+            async for message in pubsub.listen():
+                if message["type"] != "message":
+                    continue
+                data = message["data"]
+                if isinstance(data, bytes):
+                    data = data.decode()
+                event = json.loads(data)
+                if event.get("__done__"):
+                    break
+                yield event
+        finally:
+            try:
+                await pubsub.unsubscribe(topic)
+                await pubsub.aclose()
+            except Exception:
+                pass
+
+    async def close_topic(self, topic: str) -> None:
+        """Publish a sentinel so subscribers exit their listen loop."""
+        await self._redis.publish(topic, json.dumps(_SENTINEL))
+
+    async def close(self) -> None:
+        await self._redis.aclose()
+
+
+# ---------------------------------------------------------------------------
+# Factory
+# ---------------------------------------------------------------------------
+
+def build_event_broker(settings: "Settings") -> InMemoryEventBroker | RedisPubSubBroker:
+    """Return the event broker configured by ``settings.event_broker_backend``."""
+    if settings.event_broker_backend == "redis":
+        return RedisPubSubBroker(settings.redis_url)
+    return InMemoryEventBroker()

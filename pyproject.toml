@@ -37,6 +37,18 @@ dependencies = [
     "aiosqlite>=0.20",
     # SSE streaming for progress events (M11).
     "sse-starlette>=2.1",
+    # JWT authentication (M13).
+    "pyjwt>=2.8",
+    # Password hashing with Argon2 (M13).
+    "argon2-cffi>=23.1",
+    # API key hashing with bcrypt (M13).
+    "passlib[bcrypt]>=1.7",
+    # Blob encryption at rest with Fernet (M16).
+    "cryptography>=42",
+    # Background task queue backed by Redis (M17).
+    "arq>=0.25",
+    # Async Redis client — used by ARQ and event broker (M17/M18).
+    "redis[asyncio]>=5.0",
 ]
 
 [project.optional-dependencies]

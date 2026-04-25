@@ -10,7 +10,6 @@ POST   /general/documents                        upload to general KB
 
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import tempfile
 from pathlib import Path
@@ -23,12 +22,11 @@ from fastapi.responses import StreamingResponse
 from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_brain,
-    get_event_broker,
-    get_jobs,
+    get_job_queue,
     get_settings,
 )
 from ai_testplan_generator.api.errors import NotFoundError, ValidationError
-from ai_testplan_generator.api.jobs import Job, JobStatus
+from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.api.schemas.documents import (
     DocumentListItem,
     DocumentListResponse,
@@ -36,8 +34,7 @@ from ai_testplan_generator.api.schemas.documents import (
     DocumentUploadResponse,
 )
 from ai_testplan_generator.config import Settings
-from ai_testplan_generator.domain.projects import ProjectRepository
-from ai_testplan_generator.events.broker import InMemoryEventBroker
+from ai_testplan_generator.jobs.queue import JobQueueProtocol
 from ai_testplan_generator.models import Document
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
@@ -62,7 +59,7 @@ async def _stream_to_blob(
     blob_store: BlobStore,
     *,
     project_id: str,
-    scope: str,
+    scope: str,  # noqa: ARG001
 ) -> tuple[str, bytes, str]:
     """Read UploadFile in chunks, compute sha256, and store in blob store.
 
@@ -92,8 +89,8 @@ async def _ingest_from_bytes(
     filename: str,
     project_id: str,
     scope: str,
-    sha256: str,
-    blob_uri: str,
+    sha256: str,  # noqa: ARG001
+    blob_uri: str,  # noqa: ARG001
 ) -> tuple[Document, int, int, int]:
     """Write data to a temp file, run ingest pipeline, return counts."""
     ext = _ext(filename)
@@ -112,43 +109,6 @@ async def _ingest_from_bytes(
         tmp_path.unlink(missing_ok=True)
 
 
-async def _background_ingest(
-    job: Job,
-    brain: Brain,
-    broker: InMemoryEventBroker,
-    data: bytes,
-    *,
-    filename: str,
-    project_id: str,
-    scope: str,
-    sha256: str,
-    blob_uri: str,
-) -> None:
-    job.start()
-    topic = f"job:{job.id}"
-    try:
-        doc, n_sections, n_chunks, n_reqs = await _ingest_from_bytes(
-            brain, data,
-            filename=filename, project_id=project_id, scope=scope,
-            sha256=sha256, blob_uri=blob_uri,
-        )
-        result: dict[str, Any] = {
-            "document_id": doc.id,
-            "n_sections": n_sections,
-            "n_chunks": n_chunks,
-            "n_requirements": n_reqs,
-        }
-        job.succeed(result)
-        await broker.publish(topic, {"kind": "ingest_done", **result})
-        _log.info("bg_ingest_done", job_id=job.id, document_id=doc.id)
-    except Exception as exc:
-        job.fail(str(exc))
-        await broker.publish(topic, {"kind": "ingest_error", "error": str(exc)})
-        _log.error("bg_ingest_error", job_id=job.id, error=str(exc))
-    finally:
-        await broker.close_topic(topic)
-
-
 # ---------------------------------------------------------------------------
 # Endpoints — project-scoped
 # ---------------------------------------------------------------------------
@@ -158,6 +118,7 @@ async def _background_ingest(
     status_code=200,
     response_model=None,
     summary="Upload and ingest a document",
+    dependencies=[Depends(require("document.upload"))],
 )
 async def upload_document(
     project_id: str,
@@ -165,13 +126,13 @@ async def upload_document(
     brain: Annotated[Brain, Depends(get_brain)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
     settings: Annotated[Settings, Depends(get_settings)],
-    jobs: Annotated[dict[str, Job], Depends(get_jobs)],
-    broker: Annotated[InMemoryEventBroker, Depends(get_event_broker)],
+    job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
 ) -> DocumentUploadResponse | DocumentUploadAccepted:
     filename = file.filename or "upload"
     if _ext(filename) not in _ALLOWED_EXT:
         raise ValidationError(
-            f"Unsupported file type '{_ext(filename)}'. Accepted: {', '.join(sorted(_ALLOWED_EXT))}"
+            f"Unsupported file type '{_ext(filename)}'. "
+            f"Accepted: {', '.join(sorted(_ALLOWED_EXT))}"
         )
 
     blob_key, data, sha256 = await _stream_to_blob(
@@ -179,16 +140,14 @@ async def upload_document(
     )
 
     if len(data) > settings.large_doc_threshold_bytes:
-        job = Job(kind="ingest_document")
-        jobs[job.id] = job
-        asyncio.create_task(
-            _background_ingest(
-                job, brain, broker, data,
-                filename=filename, project_id=project_id, scope="project",
-                sha256=sha256, blob_uri=blob_key,
-            )
+        job_id = await job_queue.enqueue(
+            "ingest_document",
+            blob_key=blob_key,
+            project_id=project_id,
+            scope="project",
+            filename=filename,
         )
-        return DocumentUploadAccepted(job_id=job.id)
+        return DocumentUploadAccepted(job_id=job_id)
 
     doc, n_sections, n_chunks, n_reqs = await _ingest_from_bytes(
         brain, data,
@@ -289,6 +248,7 @@ async def download_document(
     "/projects/{project_id}/documents/{doc_id}",
     status_code=204,
     summary="Delete a document and its derived artefacts",
+    dependencies=[Depends(require("document.delete"))],
 )
 async def delete_document(
     project_id: str,
@@ -334,19 +294,20 @@ async def delete_document(
     status_code=200,
     response_model=None,
     summary="Upload document to general (cross-project) knowledge base",
+    dependencies=[Depends(require("general_kb.write"))],
 )
 async def upload_general_document(
     file: UploadFile,
     brain: Annotated[Brain, Depends(get_brain)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
     settings: Annotated[Settings, Depends(get_settings)],
-    jobs: Annotated[dict[str, Job], Depends(get_jobs)],
-    broker: Annotated[InMemoryEventBroker, Depends(get_event_broker)],
+    job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
 ) -> DocumentUploadResponse | DocumentUploadAccepted:
     filename = file.filename or "upload"
     if _ext(filename) not in _ALLOWED_EXT:
         raise ValidationError(
-            f"Unsupported file type '{_ext(filename)}'. Accepted: {', '.join(sorted(_ALLOWED_EXT))}"
+            f"Unsupported file type '{_ext(filename)}'. "
+            f"Accepted: {', '.join(sorted(_ALLOWED_EXT))}"
         )
 
     blob_key, data, sha256 = await _stream_to_blob(
@@ -354,16 +315,14 @@ async def upload_general_document(
     )
 
     if len(data) > settings.large_doc_threshold_bytes:
-        job = Job(kind="ingest_document")
-        jobs[job.id] = job
-        asyncio.create_task(
-            _background_ingest(
-                job, brain, broker, data,
-                filename=filename, project_id="general", scope="general",
-                sha256=sha256, blob_uri=blob_key,
-            )
+        job_id = await job_queue.enqueue(
+            "ingest_document",
+            blob_key=blob_key,
+            project_id="general",
+            scope="general",
+            filename=filename,
         )
-        return DocumentUploadAccepted(job_id=job.id)
+        return DocumentUploadAccepted(job_id=job_id)
 
     doc, n_sections, n_chunks, n_reqs = await _ingest_from_bytes(
         brain, data,

@@ -9,16 +9,21 @@ from ai_testplan_generator.api.app import create_app
 from ai_testplan_generator.api.deps import (
     get_brain,
     get_blob_store,
+    get_current_user,
     get_event_broker,
+    get_job_queue,
     get_jobs,
     get_plans,
     get_project_plans,
     get_project_repo,
     get_settings,
+    get_user_repo,
 )
 from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.events.broker import InMemoryEventBroker
+from ai_testplan_generator.jobs.queue import FakeJobQueue
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.local_fs import LocalFilesystemBlobStore
 
@@ -40,13 +45,27 @@ async def client(mock_llm, tmp_path):  # type: ignore[no-untyped-def]
     jobs: dict = {}  # type: ignore[type-arg]
     plans: dict = {}  # type: ignore[type-arg]
     project_plans: dict = {}  # type: ignore[type-arg]
+    fake_job_queue = FakeJobQueue(
+        brain=test_brain,
+        blob_store=blob_store,
+        event_broker=event_broker,
+        plans=plans,
+        project_plans=project_plans,
+    )
+
+    user_repo = await UserRepository.create(db_path=str(tmp_path / "app.db"))
+    stub_user = User(id="usr_legacy0001", email="legacy@test.local",
+                     display_name="Legacy", is_admin=True)
 
     app = create_app(settings=settings)
     app.dependency_overrides[get_brain] = lambda: test_brain
     app.dependency_overrides[get_settings] = lambda: settings
     app.dependency_overrides[get_blob_store] = lambda: blob_store
     app.dependency_overrides[get_project_repo] = lambda: project_repo
+    app.dependency_overrides[get_user_repo] = lambda: user_repo
+    app.dependency_overrides[get_current_user] = lambda: stub_user
     app.dependency_overrides[get_event_broker] = lambda: event_broker
+    app.dependency_overrides[get_job_queue] = lambda: fake_job_queue
     app.dependency_overrides[get_jobs] = lambda: jobs
     app.dependency_overrides[get_plans] = lambda: plans
     app.dependency_overrides[get_project_plans] = lambda: project_plans
@@ -57,6 +76,7 @@ async def client(mock_llm, tmp_path):  # type: ignore[no-untyped-def]
     ) as c:
         yield c
     await project_repo.close()
+    await user_repo.close()
 
 
 class TestHealthEndpoint:

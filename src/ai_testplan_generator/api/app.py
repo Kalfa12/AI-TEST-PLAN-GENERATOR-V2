@@ -85,16 +85,40 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
 
         project_repo = await ProjectRepository.create(db_path=cfg.app_db_path)
 
-        # In-memory event broker (swap for Redis in M18).
-        from ai_testplan_generator.events.broker import InMemoryEventBroker
+        # Build user repository (same SQLite file, separate connection).
+        from ai_testplan_generator.domain.users import UserRepository
 
-        event_broker = InMemoryEventBroker()
+        user_repo = await UserRepository.create(db_path=cfg.app_db_path)
+
+        # Event broker — InMemoryEventBroker or RedisPubSubBroker depending on settings (M18).
+        from ai_testplan_generator.events.broker import build_event_broker
+
+        event_broker = build_event_broker(cfg)
+
+        # ARQ Redis pool and job queue (M17).
+        job_queue = None
+        redis_pool = None
+        try:
+            import arq  # type: ignore[import-untyped]
+
+            redis_pool = await arq.create_pool(
+                arq.RedisSettings.from_dsn(cfg.redis_url)  # type: ignore[attr-defined]
+            )
+            from ai_testplan_generator.jobs.queue import JobQueue
+
+            job_queue = JobQueue(redis_pool)
+            _log.info("arq_pool_connected", redis_url=cfg.redis_url)
+        except Exception as arq_err:
+            _log.warning("arq_pool_unavailable", error=str(arq_err))
 
         # Attach everything to app.state.
         app.state.brain = brain
         app.state.blob_store = blob_store
         app.state.project_repo = project_repo
+        app.state.user_repo = user_repo
         app.state.event_broker = event_broker
+        app.state.job_queue = job_queue  # None when Redis is unavailable
+        app.state.redis_pool = redis_pool
         app.state.jobs: dict[str, Job] = {}
         app.state.plans: dict[str, Any] = {}
         app.state.project_plans: dict[str, list[str]] = {}
@@ -111,6 +135,11 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         if hasattr(graph, "close"):
             await graph.close()  # type: ignore[union-attr]
         await project_repo.close()
+        await user_repo.close()
+        if redis_pool is not None:
+            await redis_pool.aclose()
+        if hasattr(event_broker, "close"):
+            await event_broker.close()  # type: ignore[union-attr]
         _log.info("api_shutdown")
 
     return _lifespan
@@ -153,6 +182,10 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
         allow_headers=["*"],
     )
 
+    from ai_testplan_generator.api.middleware.audit import AuditMiddleware
+
+    app.add_middleware(AuditMiddleware, db_path=cfg.app_db_path)
+
     @app.middleware("http")
     async def _request_id_middleware(request: Request, call_next: Any) -> Any:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
@@ -192,6 +225,8 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     # Routers
     # ------------------------------------------------------------------
 
+    from ai_testplan_generator.api.routers.admin import router as admin_router
+    from ai_testplan_generator.api.routers.auth import router as auth_router
     from ai_testplan_generator.api.routers.chat import router as chat_router
     from ai_testplan_generator.api.routers.documents import router as docs_router
     from ai_testplan_generator.api.routers.events import router as events_router
@@ -201,12 +236,14 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     from ai_testplan_generator.api.routers.traceability import router as trace_router
 
     app.include_router(health_router)
+    app.include_router(auth_router)
     app.include_router(docs_router)
     app.include_router(plans_router)
     app.include_router(chat_router)
     app.include_router(trace_router)
     app.include_router(projects_router)
     app.include_router(events_router)
+    app.include_router(admin_router)
 
     return app
 
