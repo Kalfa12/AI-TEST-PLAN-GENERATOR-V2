@@ -1,97 +1,51 @@
-"""Dependency injection for FastAPI routes.
+"""FastAPI dependency injection helpers.
 
-Provides a process-wide `Brain` singleton and typed helpers that routes
-can declare as dependencies via `Depends(get_brain)`.
+All dependencies read from request.app.state, which is populated
+during the lifespan in api/app.py.
 """
 
 from __future__ import annotations
 
-import asyncio
-from typing import Any
+from typing import cast
 
-from ai_testplan_generator.agents.state import AutonomousState
+from fastapi import Request
+
+from ai_testplan_generator.api.jobs import Job
+from ai_testplan_generator.config import Settings
+from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.events.broker import InMemoryEventBroker
+from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
-
-# ---------------------------------------------------------------------------
-# Brain singleton
-# ---------------------------------------------------------------------------
-
-_brain: Brain | None = None
+from ai_testplan_generator.storage.base import BlobStore
 
 
-def get_brain() -> Brain:
-    """Return the process-wide Brain instance (created on first call)."""
-    global _brain
-    if _brain is None:
-        _brain = Brain.build()
-    return _brain
+def get_brain(request: Request) -> Brain:
+    return cast(Brain, request.app.state.brain)
 
 
-# ---------------------------------------------------------------------------
-# In-process session store
-# ---------------------------------------------------------------------------
-# Autonomous runs are fire-and-forget background tasks. We keep a light
-# registry of their state + asyncio.Task so the status endpoint can report
-# progress without touching the graph runner itself.
-
-_sessions: dict[str, dict[str, Any]] = {}
-_tasks: dict[str, asyncio.Task[Any]] = {}
+def get_settings(request: Request) -> Settings:
+    return cast(Settings, request.app.state.settings)
 
 
-def register_session(session_id: str, state: AutonomousState) -> None:
-    _sessions[session_id] = {
-        "state": state,
-        "status": "running",
-        "error": None,
-    }
+def get_blob_store(request: Request) -> BlobStore:
+    return cast(BlobStore, request.app.state.blob_store)
 
 
-def update_session(session_id: str, *, state: AutonomousState | None = None,
-                   status: str | None = None, error: str | None = None) -> None:
-    entry = _sessions.get(session_id)
-    if entry is None:
-        return
-    if state is not None:
-        entry["state"] = state
-    if status is not None:
-        entry["status"] = status
-    if error is not None:
-        entry["error"] = error
+def get_project_repo(request: Request) -> ProjectRepository:
+    return cast(ProjectRepository, request.app.state.project_repo)
 
 
-def get_session(session_id: str) -> dict[str, Any] | None:
-    return _sessions.get(session_id)
+def get_event_broker(request: Request) -> InMemoryEventBroker:
+    return cast(InMemoryEventBroker, request.app.state.event_broker)
 
 
-def register_task(session_id: str, task: asyncio.Task[Any]) -> None:
-    _tasks[session_id] = task
+def get_jobs(request: Request) -> dict[str, Job]:
+    return cast(dict[str, Job], request.app.state.jobs)
 
 
-def get_task(session_id: str) -> asyncio.Task[Any] | None:
-    return _tasks.get(session_id)
+def get_plans(request: Request) -> dict[str, TestPlan]:
+    return cast(dict[str, TestPlan], request.app.state.plans)
 
 
-# ---------------------------------------------------------------------------
-# Plan store (in-process cache keyed by plan_id)
-# ---------------------------------------------------------------------------
-
-from ai_testplan_generator.models import TestPlan  # noqa: E402
-
-_plans: dict[str, TestPlan] = {}
-# Also track which plans belong to which project for listing/retrieval.
-_project_plans: dict[str, list[str]] = {}
-
-
-def store_plan(plan: TestPlan, project_id: str | None = None) -> None:
-    _plans[plan.id] = plan
-    pid = project_id or "__global__"
-    _project_plans.setdefault(pid, []).append(plan.id)
-
-
-def get_plan(plan_id: str) -> TestPlan | None:
-    return _plans.get(plan_id)
-
-
-def get_plans_for_project(project_id: str) -> list[TestPlan]:
-    plan_ids = _project_plans.get(project_id, [])
-    return [_plans[pid] for pid in plan_ids if pid in _plans]
+def get_project_plans(request: Request) -> dict[str, list[str]]:
+    return cast(dict[str, list[str]], request.app.state.project_plans)

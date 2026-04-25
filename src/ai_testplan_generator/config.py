@@ -73,6 +73,17 @@ class Settings(BaseSettings):
     s3_bucket: str = Field(default="", alias="S3_BUCKET")
     s3_region: str = Field(default="us-east-1", alias="S3_REGION")
 
+    # HTTP API settings (M05)
+    api_debug: bool = Field(default=False, alias="API_DEBUG")
+    # Comma-separated origins; use ["*"] for development.
+    api_cors_origins: list[str] = Field(default=["*"], alias="API_CORS_ORIGINS")
+    # SQLite database for project/user domain repos (M10).
+    app_db_path: str = Field(default="data/app.db", alias="APP_DB_PATH")
+    # Max multipart upload size in bytes (M06).
+    max_upload_size_bytes: int = Field(default=100 * 1024 * 1024, alias="MAX_UPLOAD_SIZE_BYTES")
+    # Files larger than this threshold are backgrounded instead of inlined (M06).
+    large_doc_threshold_bytes: int = Field(default=5 * 1024 * 1024, alias="LARGE_DOC_THRESHOLD_BYTES")
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     @property
