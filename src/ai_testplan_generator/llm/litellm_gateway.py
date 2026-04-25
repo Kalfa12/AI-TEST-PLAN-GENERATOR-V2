@@ -125,10 +125,74 @@ class LiteLLMGateway(LLMGateway):
         if stop:
             payload["stop"] = list(stop)
 
-        async for attempt in self._retryer():
-            with attempt:
-                raw = await self._litellm.acompletion(**payload)
-        return self._normalise_response(raw, resolved_model)
+        import time as _time
+
+        from ai_testplan_generator.telemetry.otel import get_tracer as _get_tracer
+
+        _tracer = _get_tracer(__name__)
+        _t0 = _time.perf_counter()
+
+        with _tracer.start_as_current_span("llm.complete") as _span:
+            _span.set_attribute("llm.model", resolved_model)
+            _span.set_attribute("llm.role", str(role))
+            async for attempt in self._retryer():
+                with attempt:
+                    raw = await self._litellm.acompletion(**payload)
+            resp = self._normalise_response(raw, resolved_model)
+            _span.set_attribute("llm.input_tokens", resp.input_tokens)
+            _span.set_attribute("llm.output_tokens", resp.output_tokens)
+
+        _elapsed = _time.perf_counter() - _t0
+
+        # Prometheus metrics
+        try:
+            from ai_testplan_generator.telemetry import metrics as _m
+
+            if _m._registry is not None:
+                _m.llm_calls_total().labels(
+                    model=resp.model, role=str(role), outcome="success"
+                ).inc()
+                _m.llm_tokens_total().labels(
+                    model=resp.model, role=str(role), direction="input"
+                ).inc(resp.input_tokens)
+                _m.llm_tokens_total().labels(
+                    model=resp.model, role=str(role), direction="output"
+                ).inc(resp.output_tokens)
+                _m.llm_latency_seconds().labels(
+                    model=resp.model, role=str(role)
+                ).observe(_elapsed)
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Fire-and-forget cost tracking
+        if self._settings.cost_tracking_enabled:
+            try:
+                import asyncio as _asyncio
+
+                import structlog.contextvars as _sc_ctx
+
+                from ai_testplan_generator.telemetry.cost import record_usage as _record_usage
+
+                _ctx = _sc_ctx.get_contextvars()
+                _sid = _ctx.get("session_id")
+                _pid = _ctx.get("project_id")
+                _uid = _ctx.get("user_id")
+                _asyncio.create_task(
+                    _record_usage(
+                        self._settings.app_db_path,
+                        session_id=str(_sid) if _sid is not None else None,
+                        project_id=str(_pid) if _pid is not None else None,
+                        user_id=str(_uid) if _uid is not None else None,
+                        model=resp.model,
+                        role=str(role),
+                        input_tokens=resp.input_tokens,
+                        output_tokens=resp.output_tokens,
+                    )
+                )
+            except Exception:  # noqa: BLE001
+                pass
+
+        return resp
 
     # -- structured output -----------------------------------------------------
 

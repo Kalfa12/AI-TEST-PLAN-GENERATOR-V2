@@ -49,27 +49,56 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
     async def run(self, inp: TIn) -> TOut: ...
 
     async def invoke(self, inp: TIn) -> TOut:
-        await self.ctx.memory.log_event(
-            self.ctx.session_id,
-            actor=self.name,
-            kind="agent_start",
-            content=f"{self.name} invoked",
-        )
-        try:
-            out = await self.run(inp)
-        except Exception as e:
-            _log.exception("agent_failed", agent=self.name, error=str(e))
+        import time as _time
+
+        from ai_testplan_generator.telemetry.otel import get_tracer as _get_tracer
+
+        _tracer = _get_tracer(__name__)
+        _t0 = _time.perf_counter()
+        _outcome = "success"
+
+        with _tracer.start_as_current_span(f"agent.{self.name}") as _span:
+            _span.set_attribute("agent.name", self.name)
+            _span.set_attribute("session_id", self.ctx.session_id)
+            if self.ctx.project_id is not None:
+                _span.set_attribute("project_id", self.ctx.project_id)
+
             await self.ctx.memory.log_event(
                 self.ctx.session_id,
                 actor=self.name,
-                kind="agent_error",
-                content=str(e),
+                kind="agent_start",
+                content=f"{self.name} invoked",
             )
-            raise
+            try:
+                out = await self.run(inp)
+            except Exception as e:
+                _log.exception("agent_failed", agent=self.name, error=str(e))
+                _outcome = "error"
+                _span.record_exception(e)
+                await self.ctx.memory.log_event(
+                    self.ctx.session_id,
+                    actor=self.name,
+                    kind="agent_error",
+                    content=str(e),
+                )
+                raise
+            finally:
+                _elapsed = _time.perf_counter() - _t0
+                try:
+                    from ai_testplan_generator.telemetry import metrics as _m
+
+                    if _m._registry is not None:
+                        _m.agent_runs_total().labels(
+                            agent=self.name, outcome=_outcome
+                        ).inc()
+                        _m.agent_duration_seconds().labels(agent=self.name).observe(_elapsed)
+                except Exception:  # noqa: BLE001
+                    pass
+
         await self.ctx.memory.log_event(
             self.ctx.session_id,
             actor=self.name,
             kind="agent_done",
             content=f"{self.name} returned",
         )
-        return out
+        return out  # type: ignore[return-value]

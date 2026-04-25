@@ -36,6 +36,11 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         cfg = settings or _get_settings()
         app.state.settings = cfg
 
+        # Initialise OTel tracing (no-op when OTEL_ENABLED=false).
+        from ai_testplan_generator.telemetry.otel import init_tracing
+
+        init_tracing(cfg.otel_service_name, cfg.otel_exporter_otlp_endpoint)
+
         _log.info("api_startup", semantic=cfg.semantic_memory_backend,
                   episodic=cfg.episodic_memory_backend, graph=cfg.crossdoc_graph_backend)
 
@@ -160,6 +165,17 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     """
     cfg = settings or _get_settings()
 
+    # Configure structlog before any log calls.
+    from ai_testplan_generator.telemetry.logging import configure_logging
+
+    configure_logging(cfg)
+
+    # Initialise Prometheus registry when metrics are enabled.
+    if cfg.metrics_enabled:
+        from ai_testplan_generator.telemetry.metrics import init_metrics
+
+        init_metrics()
+
     app = FastAPI(
         title="AI Test Plan Generator",
         description=(
@@ -186,12 +202,32 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
 
     app.add_middleware(AuditMiddleware, db_path=cfg.app_db_path)
 
+    if cfg.metrics_enabled:
+        from ai_testplan_generator.api.middleware.prometheus_mw import PrometheusMiddleware
+
+        app.add_middleware(PrometheusMiddleware)
+
     @app.middleware("http")
     async def _request_id_middleware(request: Request, call_next: Any) -> Any:
         request_id = request.headers.get("X-Request-ID", str(uuid.uuid4()))
+        structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+
+        # Inject OTel trace/span IDs so log lines carry trace correlation.
+        from ai_testplan_generator.telemetry.otel import current_trace_context
+
+        trace_ctx = current_trace_context()
+        if trace_ctx:
+            structlog.contextvars.bind_contextvars(**trace_ctx)
+
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id
+
+        # Bind user_id if authentication resolved a user during request handling.
+        user = getattr(request.state, "current_user", None)
+        if user is not None:
+            structlog.contextvars.bind_contextvars(user_id=user.id)
+
         structlog.contextvars.unbind_contextvars("request_id")
         return response
 
@@ -219,6 +255,26 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
             status_code=500,
             content={"detail": detail, "request_id": request_id,
                      "error_code": "INTERNAL_ERROR"},
+        )
+
+    # ------------------------------------------------------------------
+    # Metrics endpoint — must NOT require authentication
+    # ------------------------------------------------------------------
+
+    @app.get("/metrics", include_in_schema=False)
+    async def _metrics_endpoint() -> Any:
+        if not cfg.metrics_enabled:
+            from fastapi import Response
+
+            return Response(status_code=404)
+        from prometheus_client import generate_latest  # type: ignore[import-untyped]
+
+        from ai_testplan_generator.telemetry.metrics import get_registry
+        from fastapi.responses import Response as _Response
+
+        return _Response(
+            content=generate_latest(get_registry()),
+            media_type="text/plain; version=0.0.4; charset=utf-8",
         )
 
     # ------------------------------------------------------------------

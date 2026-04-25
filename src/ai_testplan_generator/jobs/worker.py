@@ -23,6 +23,15 @@ _log = structlog.get_logger(__name__)
 async def startup(ctx: dict[str, Any]) -> None:
     """Build Brain, BlobStore, and EventBroker once per worker process."""
     from ai_testplan_generator.config import get_settings
+
+    cfg = get_settings()
+
+    from ai_testplan_generator.telemetry.logging import configure_logging
+    from ai_testplan_generator.telemetry.otel import init_tracing
+
+    configure_logging(cfg)
+    init_tracing(cfg.otel_service_name, cfg.otel_exporter_otlp_endpoint)
+
     from ai_testplan_generator.events.broker import build_event_broker
     from ai_testplan_generator.ingestion.pipeline import IngestionPipeline
     from ai_testplan_generator.knowledge import GeneralKnowledgeBase
@@ -35,8 +44,6 @@ async def startup(ctx: dict[str, Any]) -> None:
     from ai_testplan_generator.memory.manager import MemoryManager
     from ai_testplan_generator.pipelines.brain import Brain
     from ai_testplan_generator.storage import build_blob_store
-
-    cfg = get_settings()
 
     episodic = await build_episodic_store(cfg)
     semantic = build_semantic_store(cfg)

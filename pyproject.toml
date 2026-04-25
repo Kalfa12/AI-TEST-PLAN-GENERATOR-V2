@@ -49,6 +49,13 @@ dependencies = [
     "arq>=0.25",
     # Async Redis client — used by ARQ and event broker (M17/M18).
     "redis[asyncio]>=5.0",
+    # Prometheus metrics exposition (M21).
+    "prometheus-client>=0.21",
+    # OpenTelemetry SDK and OTLP exporter (M20).
+    "opentelemetry-sdk>=1.27",
+    "opentelemetry-exporter-otlp-proto-http>=1.27",
+    "opentelemetry-instrumentation-fastapi>=0.48b0",
+    "opentelemetry-instrumentation-httpx>=0.48b0",
 ]
 
 [project.optional-dependencies]

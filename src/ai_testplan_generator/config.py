@@ -14,6 +14,8 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+
+
 class ModelTier(BaseSettings):
     """Three-tier model policy that every agent can pick from by role.
 
@@ -113,6 +115,21 @@ class Settings(BaseSettings):
     event_broker_backend: Literal["inmemory", "redis"] = Field(
         default="inmemory", alias="EVENT_BROKER_BACKEND"
     )
+
+    # OpenTelemetry tracing (M20)
+    otel_enabled: bool = Field(default=False, alias="OTEL_ENABLED")
+    otel_service_name: str = Field(default="aitpg-api", alias="OTEL_SERVICE_NAME")
+    otel_exporter_otlp_endpoint: str = Field(default="", alias="OTEL_EXPORTER_OTLP_ENDPOINT")
+
+    # Prometheus metrics (M21)
+    metrics_enabled: bool = Field(default=True, alias="METRICS_ENABLED")
+
+    # Structured logging (M22)
+    log_format: Literal["json", "console"] = Field(default="console", alias="LOG_FORMAT")
+    log_level: str = Field(default="INFO", alias="LOG_LEVEL")
+
+    # LLM cost tracking (M23)
+    cost_tracking_enabled: bool = Field(default=True, alias="COST_TRACKING_ENABLED")
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
