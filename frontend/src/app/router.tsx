@@ -13,6 +13,8 @@ import { PlanDetailPage } from "@/features/plans/plan-detail";
 import { ChatPage } from "@/features/chat/chat-page";
 import { TraceabilityGraphPage } from "@/features/traceability/graph-view";
 import { AdminPage } from "@/features/admin/admin-page";
+import { KnowledgePage } from "@/features/knowledge/knowledge-page";
+import { ApiKeysPage } from "@/features/auth/api-keys-page";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -72,6 +74,18 @@ const adminRoute = createRoute({
   component: AdminPage,
 });
 
+const knowledgeRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/knowledge",
+  component: KnowledgePage,
+});
+
+const apiKeysRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/api-keys",
+  component: ApiKeysPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
@@ -81,6 +95,8 @@ const routeTree = rootRoute.addChildren([
     planDetailRoute,
     chatRoute,
     traceabilityRoute,
+    knowledgeRoute,
+    apiKeysRoute,
     adminRoute,
   ]),
 ]);

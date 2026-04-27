@@ -11,6 +11,7 @@ reachable through it.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from ai_testplan_generator.agents.base import AgentContext
 from ai_testplan_generator.config import Settings, get_settings
@@ -27,6 +28,9 @@ class Brain:
     memory: MemoryManager
     ingestion: IngestionPipeline
     general_kb: GeneralKnowledgeBase
+    # Optional event broker — injected by the API layer so agents can
+    # publish per-step SSE events to the frontend.
+    event_broker: Any | None = None
 
     def project_kb(self, project_id: str) -> ProjectKnowledgeBase:
         return ProjectKnowledgeBase(self.ingestion, project_id=project_id)
@@ -37,6 +41,7 @@ class Brain:
             memory=self.memory,
             session_id=session_id,
             project_id=project_id,
+            event_broker=self.event_broker,
         )
 
     @classmethod

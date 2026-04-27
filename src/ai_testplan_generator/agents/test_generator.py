@@ -50,7 +50,12 @@ class _DraftCriterion(BaseModel):
 class _DraftCase(BaseModel):
     title: str
     objective: str
+    # Testing Types: which test levels apply (unit, integration, system,
+    # UAT, performance, security, regression, exploratory, etc.)
+    testing_types: list[str] = Field(default_factory=list)
     preconditions: list[str] = Field(default_factory=list)
+    # Features explicitly NOT tested by this test case
+    features_not_tested: list[str] = Field(default_factory=list)
     equipment: list[str] = Field(default_factory=list)
     setup: str | None = None
     steps: list[_DraftStep] = Field(default_factory=list)
@@ -58,6 +63,14 @@ class _DraftCase(BaseModel):
     teardown: str | None = None
     estimated_duration_minutes: int | None = None
     risk_level: int = Field(ge=1, le=5, default=3)
+    # Narrative risk analysis (likelihood × impact, mitigation)
+    risk_description: str | None = None
+    # Artifacts produced by this test (test report, log file, screenshots, etc.)
+    deliverables: list[str] = Field(default_factory=list)
+    # External dependencies (test environment, third-party services, data sets, etc.)
+    dependencies: list[str] = Field(default_factory=list)
+    # KPIs / measurable success metrics for this test item
+    kpis: list[str] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
 
 
@@ -131,7 +144,9 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
         return TestCase(
             title=draft.title,
             objective=draft.objective,
+            testing_types=draft.testing_types,
             preconditions=draft.preconditions,
+            features_not_tested=draft.features_not_tested,
             equipment=draft.equipment,
             setup=draft.setup,
             steps=[
@@ -153,5 +168,9 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
             requirement_ids=[req.id],
             estimated_duration_minutes=draft.estimated_duration_minutes,
             risk_level=draft.risk_level,
+            risk_description=draft.risk_description,
+            deliverables=draft.deliverables,
+            dependencies=draft.dependencies,
+            kpis=draft.kpis,
             tags=draft.tags,
         )

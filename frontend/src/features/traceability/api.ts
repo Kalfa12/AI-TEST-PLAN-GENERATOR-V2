@@ -19,3 +19,13 @@ export async function getProjectCoverage(
   );
   return res.data;
 }
+
+export interface ProjectGaps {
+  project_id: string;
+  uncovered_requirement_ids: string[];
+}
+
+export async function getProjectGaps(projectId: string): Promise<ProjectGaps> {
+  const res = await http.get<ProjectGaps>(`/projects/${projectId}/gaps`);
+  return res.data;
+}

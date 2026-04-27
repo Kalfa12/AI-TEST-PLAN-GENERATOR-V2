@@ -95,16 +95,29 @@ async def chat_stream(
     websocket: WebSocket,
     brain: Annotated[Brain, Depends(get_brain)],
 ) -> None:
-    """WebSocket endpoint for streaming token-by-token responses."""
+    """WebSocket endpoint for streaming token-by-token responses.
+
+    Loads recent episodic history before each turn so the assistant can
+    reference earlier user/assistant messages in the same session.
+    """
     await websocket.accept()
     try:
         while True:
             message = await websocket.receive_text()
+
+            # Build prompt: prior turns from episodic memory + current message.
+            # Cap at 20 message events to keep token usage bounded.
+            history = await brain.memory.episodic.recent(
+                session_id, limit=20, kinds=["message"]
+            )
+            messages: list[ChatMessage] = []
+            for ev in history:
+                role = "user" if ev.actor == "user" else "assistant"
+                messages.append(ChatMessage(role=role, content=ev.content))
+            messages.append(ChatMessage(role="user", content=message))
+
             full_text: list[str] = []
-            async for token in brain.llm.stream(
-                [ChatMessage(role="user", content=message)],
-                role="balanced",
-            ):
+            async for token in brain.llm.stream(messages, role="balanced"):
                 full_text.append(token)
                 await websocket.send_text(json.dumps({"token": token}))
             await brain.memory.log_event(session_id, "user", "message", message)

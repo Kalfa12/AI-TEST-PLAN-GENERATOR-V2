@@ -106,6 +106,14 @@ class OrchestratorAgent(BaseAgent[AutonomousState, OrchestratorDecision]):
             decision = await self.ctx.llm.complete_structured(
                 messages, OrchestratorDecision, role="fast", temperature=0.0
             )
+            # Clamp: at this stage the only valid loopback is "generator";
+            # any other route (analyst, extractor, etc.) would be nonsense and
+            # would cause the pipeline to re-run expensive early stages.
+            if decision.route_to not in ("generator", "planner", "finish"):
+                decision = OrchestratorDecision(
+                    route_to="planner",
+                    rationale=f"clamped from invalid route '{decision.route_to}'",
+                )
             return decision
 
         if inp.schedule is None:

@@ -99,6 +99,8 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         from ai_testplan_generator.events.broker import build_event_broker
 
         event_broker = build_event_broker(cfg)
+        # Give the brain a reference so agents can publish per-step SSE events.
+        brain.event_broker = event_broker
 
         app.state.jobs: dict[str, Job] = {}
         app.state.plans: dict[str, Any] = {}

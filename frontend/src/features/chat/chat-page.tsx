@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams } from "@tanstack/react-router";
+import { useNavigate, useParams } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { confirmAction, openChatStream, sendChat } from "./api";
+import { confirmAction, getChatHistory, openChatStream, sendChat } from "./api";
+import {
+  createSession,
+  getSession,
+  touchSession,
+} from "@/lib/chat-sessions";
 
 interface Citation {
   chunk_id?: string;
@@ -31,12 +36,28 @@ const SLASH_HELP: Record<string, string> = {
 
 export function ChatPage() {
   const { sessionId } = useParams({ strict: false }) as { sessionId: string };
+  const navigate = useNavigate();
   const toast = useToast();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  const session = getSession(sessionId);
+  const projectId = session?.projectId;
+
+  const onNewChat = () => {
+    if (!projectId) {
+      toast.push({
+        title: "No project context",
+        description: "Open this chat from a project dashboard to start a new one.",
+        tone: "error",
+      });
+      return;
+    }
+    const s = createSession(projectId);
+    navigate({ to: "/chat/$sessionId", params: { sessionId: s.id } });
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({
@@ -50,6 +71,31 @@ export function ChatPage() {
       wsRef.current?.close();
     };
   }, []);
+
+  // Restore conversation on mount or whenever the session id changes.
+  useEffect(() => {
+    if (!sessionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const hist = await getChatHistory(sessionId);
+        if (cancelled) return;
+        const restored: Message[] = hist.events
+          .filter((e) => e.kind === "message" && (e.actor === "user" || e.actor === "assistant"))
+          .map((e, i) => ({
+            id: `h-${i}-${e.ts}`,
+            role: e.actor as "user" | "assistant",
+            text: e.content,
+          }));
+        if (restored.length > 0) setMessages(restored);
+      } catch {
+        // No history yet — fresh session, fine.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
 
   const ensureWs = (): WebSocket => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
@@ -119,11 +165,19 @@ export function ChatPage() {
     };
     setMessages((m) => [...m, userMsg, asstMsg]);
 
+    // Refresh the localStorage session record (sets title from first
+    // message and bumps updatedAt so the dashboard list re-orders).
+    touchSession(sessionId, text);
+
     // Slash command path: route to non-streaming HTTP /chat so we capture
     // pending actions and citations from the structured ChatReply.
     if (text.startsWith("/")) {
       try {
-        const reply = await sendChat({ session_id: sessionId, message: text });
+        const reply = await sendChat({
+          session_id: sessionId,
+          project_id: projectId,
+          message: text,
+        });
         setMessages((m) => {
           const without = m.slice(0, -1);
           return [
@@ -189,9 +243,21 @@ export function ChatPage() {
 
   return (
     <div className="flex flex-col h-full p-6 gap-4">
-      <div>
-        <h1 className="text-2xl font-semibold">Copilot</h1>
-        <p className="text-sm text-muted-foreground">Session {sessionId}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">
+            {session?.title ?? "Copilot"}
+          </h1>
+          <p className="text-sm text-muted-foreground font-mono">{sessionId}</p>
+          {projectId && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Project: <span className="font-mono">{projectId}</span>
+            </p>
+          )}
+        </div>
+        <Button size="sm" variant="outline" onClick={onNewChat}>
+          New chat
+        </Button>
       </div>
 
       <Card className="flex-1 flex flex-col">

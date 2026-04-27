@@ -4,13 +4,35 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
-import { useDocuments } from "./hooks";
+import { useToast } from "@/components/ui/toast";
+import { useDeleteDocument, useDocuments } from "./hooks";
+import { getDocumentDownloadUrl } from "./api";
 import { UploadDrawer } from "./upload-drawer";
 import { formatDate } from "@/lib/utils";
 
 export function DocumentsTable({ projectId }: { projectId: string }) {
   const { data: docs, isLoading } = useDocuments(projectId);
+  const del = useDeleteDocument(projectId);
+  const toast = useToast();
   const [open, setOpen] = useState(false);
+
+  const onDelete = async (id: string, title: string) => {
+    if (!confirm(`Delete "${title}" and all its derived requirements?`)) return;
+    try {
+      await del.mutateAsync(id);
+      toast.push({ title: "Document deleted", tone: "success" });
+    } catch (e) {
+      toast.push({
+        title: "Delete failed",
+        description: (e as Error).message,
+        tone: "error",
+      });
+    }
+  };
+
+  const onDownload = (id: string) => {
+    window.open(getDocumentDownloadUrl(projectId, id), "_blank", "noopener");
+  };
 
   return (
     <Card>
@@ -37,8 +59,10 @@ export function DocumentsTable({ projectId }: { projectId: string }) {
               <TR>
                 <TH>Title</TH>
                 <TH>Kind</TH>
+                <TH>Scope</TH>
                 <TH>Chunks</TH>
                 <TH>Ingested</TH>
+                <TH></TH>
               </TR>
             </THead>
             <TBody>
@@ -48,9 +72,33 @@ export function DocumentsTable({ projectId }: { projectId: string }) {
                   <TD>
                     <Badge tone="info">{d.kind}</Badge>
                   </TD>
+                  <TD>
+                    <Badge tone={d.scope === "general" ? "success" : "default"}>
+                      {d.scope === "general" ? "General KB" : "Project"}
+                    </Badge>
+                  </TD>
                   <TD>{d.n_chunks}</TD>
                   <TD className="text-muted-foreground">
                     {formatDate(d.ingested_at)}
+                  </TD>
+                  <TD>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onDownload(d.id)}
+                      >
+                        Download
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onDelete(d.id, d.title)}
+                        disabled={del.isPending}
+                      >
+                        Delete
+                      </Button>
+                    </div>
                   </TD>
                 </TR>
               ))}

@@ -22,6 +22,8 @@ class _ArchitectInput(BaseModel):
 
 class _ArchitectOutput(BaseModel):
     title: str
+    introduction: str = ""
+    objectives: list[str] = Field(default_factory=list)
     scope: str
     out_of_scope: list[str] = Field(default_factory=list)
     strategy: str
@@ -72,6 +74,8 @@ class TestArchitectAgent(BaseAgent[_ArchitectInput, TestPlan]):
             project_id=self.ctx.project_id,
             title=shell.title,
             detail_level=inp.detail_level,
+            introduction=shell.introduction,
+            objectives=shell.objectives,
             scope=shell.scope,
             out_of_scope=shell.out_of_scope,
             strategy=shell.strategy,

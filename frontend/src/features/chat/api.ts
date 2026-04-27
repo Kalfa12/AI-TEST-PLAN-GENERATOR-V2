@@ -11,6 +11,30 @@ export async function sendChat(body: {
   return res.data;
 }
 
+export interface ChatHistoryEvent {
+  ts: string;
+  actor: string;
+  kind: string;
+  content: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ChatHistoryResponse {
+  session_id: string;
+  events: ChatHistoryEvent[];
+}
+
+export async function getChatHistory(
+  sessionId: string,
+  limit = 50,
+): Promise<ChatHistoryResponse> {
+  const res = await http.get<ChatHistoryResponse>(
+    `/chat/${encodeURIComponent(sessionId)}/history`,
+    { params: { limit } },
+  );
+  return res.data;
+}
+
 export async function confirmAction(
   sessionId: string,
   confirmed: boolean,

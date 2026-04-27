@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Link } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -11,7 +11,8 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
-import { useCreatePlan, usePlans } from "./hooks";
+import { useCreatePlan, useDeletePlan, usePlans, usePlanJobPolling } from "./hooks";
+import { AgentProgress } from "./agent-progress";
 
 const schema = z.object({
   goal: z.string().min(1, "Goal is required"),
@@ -20,22 +21,55 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
+interface ActiveJob {
+  jobId: string;
+  sessionId: string;
+}
+
 export function PlansTable({ projectId }: { projectId: string }) {
   const { data: plans, isLoading } = usePlans(projectId);
   const create = useCreatePlan(projectId);
+  const del = useDeletePlan(projectId);
   const toast = useToast();
   const [open, setOpen] = useState(false);
+  const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
+
+  const onDelete = async (id: string, title: string, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!confirm(`Delete plan "${title}"? This cannot be undone.`)) return;
+    try {
+      await del.mutateAsync(id);
+      toast.push({ title: "Plan deleted", tone: "success" });
+    } catch (err) {
+      toast.push({
+        title: "Delete failed",
+        description: (err as Error).message,
+        tone: "error",
+      });
+    }
+  };
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
     defaultValues: { goal: "", detail_level: "detailed" },
   });
 
+  const handleJobDone = useCallback((_planId: string | null) => {
+    setActiveJob(null);
+  }, []);
+
+  const { status: jobStatus, error: jobError } = usePlanJobPolling(
+    activeJob?.jobId ?? null,
+    handleJobDone,
+  );
+
   const onSubmit = async (values: FormValues) => {
     try {
       const r = await create.mutateAsync(values);
+      setActiveJob({ jobId: r.job_id, sessionId: r.session_id });
       toast.push({
         title: "Plan generation started",
-        description: `Job ${r.job_id}`,
+        description: "Agents are working on your plan…",
         tone: "info",
       });
       setOpen(false);
@@ -51,11 +85,19 @@ export function PlansTable({ projectId }: { projectId: string }) {
 
   return (
     <>
+      {activeJob && (
+        <AgentProgress
+          sessionId={activeJob.sessionId}
+          jobStatus={jobStatus}
+          jobError={jobError}
+        />
+      )}
+
       <Card>
         <CardHeader className="flex items-center justify-between">
           <CardTitle>Plans</CardTitle>
-          <Button size="sm" onClick={() => setOpen(true)}>
-            Generate plan
+          <Button size="sm" onClick={() => setOpen(true)} disabled={!!activeJob}>
+            {activeJob ? "Generating…" : "Generate plan"}
           </Button>
         </CardHeader>
         <CardBody className="p-0">
@@ -87,13 +129,23 @@ export function PlansTable({ projectId }: { projectId: string }) {
                     </TD>
                     <TD>{p.n_test_cases}</TD>
                     <TD>
-                      <Link
-                        to="/projects/$projectId/plans/$planId"
-                        params={{ projectId, planId: p.id }}
-                        className="text-sm underline"
-                      >
-                        Open
-                      </Link>
+                      <div className="flex items-center gap-3">
+                        <Link
+                          to="/projects/$projectId/plans/$planId"
+                          params={{ projectId, planId: p.id }}
+                          className="text-sm underline"
+                        >
+                          Open
+                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => onDelete(p.id, p.title, e)}
+                          disabled={del.isPending}
+                        >
+                          Delete
+                        </Button>
+                      </div>
                     </TD>
                   </TR>
                 ))}

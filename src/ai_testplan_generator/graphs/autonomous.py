@@ -97,7 +97,17 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         if not out.test_cases:
             return {"error": "generator failed to produce any valid test cases (all LLM calls failed or timed out)"}
         state.plan.test_cases = out.test_cases
-        return {"plan": state.plan, "test_cases": out.test_cases}
+        # Always clear stale traceability/review state so the orchestrator is
+        # forced back through traceability → reviewer on the next pass.
+        # Without this, revision_round never increments and the loop is infinite:
+        # orchestrator sees review_report != None, asks LLM, LLM says "generator",
+        # generator runs, revision_round is still the same → endless spin.
+        return {
+            "plan": state.plan,
+            "test_cases": out.test_cases,
+            "trace_report": None,
+            "review_report": None,
+        }
 
     async def _traceability(state: AutonomousState) -> dict[str, Any]:
         if state.plan is None:

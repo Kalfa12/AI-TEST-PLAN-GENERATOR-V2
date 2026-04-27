@@ -7,42 +7,29 @@ import type {
 } from "@/lib/api/types";
 
 export interface UploadResult {
-  // Synchronous (small file): document fields are populated.
   document?: DocumentItem;
   n_chunks?: number;
   n_requirements?: number;
-  // Asynchronous (large file): job_id returned for polling.
   job_id?: string;
 }
 
-export async function listDocuments(projectId: string): Promise<DocumentItem[]> {
+const GENERAL_PID = "general";
+
+export async function listGeneralDocuments(): Promise<DocumentItem[]> {
   const res = await http.get<DocumentListResponse>(
-    `/projects/${projectId}/documents`,
+    `/projects/${GENERAL_PID}/documents`,
   );
   return res.data.items;
 }
 
-export async function deleteDocument(
-  projectId: string,
-  docId: string,
-): Promise<void> {
-  await http.delete(`/projects/${projectId}/documents/${docId}`);
-}
-
-export function getDocumentDownloadUrl(projectId: string, docId: string): string {
-  const baseURL = (http.defaults.baseURL ?? "").replace(/\/$/, "");
-  return `${baseURL}/projects/${projectId}/documents/${docId}/download`;
-}
-
-export async function uploadDocument(
-  projectId: string,
+export async function uploadGeneralDocument(
   file: File,
   onProgress?: (pct: number) => void,
 ): Promise<UploadResult> {
   const form = new FormData();
   form.append("file", file);
   const res = await http.post<UploadResult | DocumentUploadAccepted>(
-    `/projects/${projectId}/documents`,
+    `/general/documents`,
     form,
     {
       headers: { "Content-Type": "multipart/form-data" },
@@ -54,6 +41,10 @@ export async function uploadDocument(
     },
   );
   return res.data as UploadResult;
+}
+
+export async function deleteGeneralDocument(docId: string): Promise<void> {
+  await http.delete(`/projects/${GENERAL_PID}/documents/${docId}`);
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatus> {

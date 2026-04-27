@@ -1,6 +1,9 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createPlan,
+  deletePlan,
+  getJobStatus,
   getPlan,
   getPlanCoverage,
   listPlans,
@@ -11,6 +14,8 @@ export function usePlans(projectId: string | undefined) {
     queryKey: ["plans", projectId],
     queryFn: () => listPlans(projectId!),
     enabled: !!projectId,
+    // Refresh every 4 s so a just-finished job shows up without manual reload.
+    refetchInterval: 4_000,
   });
 }
 
@@ -45,4 +50,55 @@ export function useCreatePlan(projectId: string) {
       createPlan(projectId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", projectId] }),
   });
+}
+
+export function useDeletePlan(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (planId: string) => deletePlan(projectId, planId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", projectId] }),
+  });
+}
+
+/** Poll a background job until it reaches a terminal state. */
+export function usePlanJobPolling(
+  jobId: string | null,
+  onDone: (planId: string | null) => void,
+) {
+  const [status, setStatus] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!jobId) return;
+    let cancelled = false;
+
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const s = await getJobStatus(jobId);
+          if (cancelled) return;
+          setStatus(s.status);
+          if (s.status === "succeeded") {
+            const planId = (s.result?.plan_id as string) ?? null;
+            onDone(planId);
+            return;
+          }
+          if (s.status === "failed") {
+            setError(s.error ?? "Job failed");
+            onDone(null);
+            return;
+          }
+        } catch (e) {
+          if (!cancelled) setError((e as Error).message);
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 2_000));
+      }
+    };
+
+    poll();
+    return () => { cancelled = true; };
+  }, [jobId, onDone]);
+
+  return { status, error };
 }

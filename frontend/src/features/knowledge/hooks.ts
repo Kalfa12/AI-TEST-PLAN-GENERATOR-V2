@@ -1,35 +1,35 @@
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  deleteDocument,
+  deleteGeneralDocument,
   getJobStatus,
-  listDocuments,
-  uploadDocument,
+  listGeneralDocuments,
+  uploadGeneralDocument,
   UploadResult,
 } from "./api";
-import { useEffect, useState } from "react";
 
-export function useDocuments(projectId: string | undefined) {
+export function useGeneralDocuments() {
   return useQuery({
-    queryKey: ["documents", projectId],
-    queryFn: () => listDocuments(projectId!),
-    enabled: !!projectId,
+    queryKey: ["general-documents"],
+    queryFn: listGeneralDocuments,
+    refetchInterval: 4_000,
   });
 }
 
-export function useUploadDocument(projectId: string) {
+export function useUploadGeneralDocument() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (params: { file: File; onProgress?: (pct: number) => void }) =>
-      uploadDocument(projectId, params.file, params.onProgress),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents", projectId] }),
+      uploadGeneralDocument(params.file, params.onProgress),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["general-documents"] }),
   });
 }
 
-export function useDeleteDocument(projectId: string) {
+export function useDeleteGeneralDocument() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (docId: string) => deleteDocument(projectId, docId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents", projectId] }),
+    mutationFn: (docId: string) => deleteGeneralDocument(docId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["general-documents"] }),
   });
 }
 

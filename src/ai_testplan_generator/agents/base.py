@@ -8,7 +8,7 @@ own storage - only the MemoryManager does.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Generic, TypeVar
 
 import structlog
@@ -31,6 +31,9 @@ class AgentContext:
     session_id: str
     project_id: str | None = None
     config: dict[str, Any] | None = None
+    # Optional EventBroker — when set, per-agent start/done/error events are
+    # published to the session SSE stream so the frontend can track progress.
+    event_broker: Any | None = field(default=None, compare=False)
 
 
 class BaseAgent(ABC, Generic[TIn, TOut]):
@@ -47,6 +50,17 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
 
     @abstractmethod
     async def run(self, inp: TIn) -> TOut: ...
+
+    async def _publish(self, kind: str, content: str) -> None:
+        if self.ctx.event_broker is None:
+            return
+        try:
+            await self.ctx.event_broker.publish(
+                f"session:{self.ctx.session_id}",
+                {"kind": kind, "actor": self.name, "content": content},
+            )
+        except Exception:  # noqa: BLE001
+            pass
 
     async def invoke(self, inp: TIn) -> TOut:
         import time as _time
@@ -69,6 +83,7 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
                 kind="agent_start",
                 content=f"{self.name} invoked",
             )
+            await self._publish("agent_start", f"{self.name} started")
             try:
                 out = await self.run(inp)
             except Exception as e:
@@ -81,6 +96,7 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
                     kind="agent_error",
                     content=str(e),
                 )
+                await self._publish("agent_error", str(e))
                 raise
             finally:
                 _elapsed = _time.perf_counter() - _t0
@@ -101,4 +117,5 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
             kind="agent_done",
             content=f"{self.name} returned",
         )
+        await self._publish("agent_done", f"{self.name} done")
         return out  # type: ignore[return-value]

@@ -68,29 +68,57 @@ export interface PlanListResponse {
   total: number;
 }
 
+export interface TestStep {
+  id: string;
+  index: number;
+  action: string;
+  expected_result: string;
+  notes?: string | null;
+}
+
+export interface AcceptanceCriterion {
+  id: string;
+  statement: string;
+  measurable: boolean;
+  tolerance?: string | null;
+}
+
 export interface TestCaseSummary {
   id: string;
   title: string;
   objective: string;
   requirement_ids: string[];
   risk_level: number;
+  risk_description?: string | null;
   estimated_duration_minutes: number | null;
   tags: string[];
-  steps?: string[];
-  acceptance_criteria?: string[];
+  testing_types?: string[];
+  features_not_tested?: string[];
+  deliverables?: string[];
+  dependencies?: string[];
+  kpis?: string[];
+  assignee?: string | null;
+  steps?: TestStep[];
+  acceptance_criteria?: AcceptanceCriterion[];
 }
 
 export interface TestPlanSummary {
   id: string;
   project_id: string | null;
   title: string;
+  version?: string;
+  author?: string;
   detail_level: string;
+  introduction?: string;
+  objectives?: string[];
   scope: string;
+  out_of_scope?: string[];
   strategy: string;
   n_test_cases: number;
   test_cases: TestCaseSummary[];
   entry_criteria?: string[];
   exit_criteria?: string[];
+  risks?: string[];
 }
 
 export interface CoverageMatrixResponse {

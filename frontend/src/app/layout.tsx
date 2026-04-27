@@ -13,6 +13,9 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   { to: "/projects", label: "Projects" },
+  { to: "/knowledge", label: "Knowledge base" },
+  { to: "/traceability", label: "Traceability" },
+  { to: "/api-keys", label: "API keys" },
   { to: "/admin", label: "Admin", adminOnly: true },
 ];
 

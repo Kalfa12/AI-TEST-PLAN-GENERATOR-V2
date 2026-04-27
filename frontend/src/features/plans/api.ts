@@ -2,6 +2,7 @@ import { http } from "@/lib/api/http";
 import type {
   CoverageMatrixResponse,
   CreatePlanAccepted,
+  JobStatus,
   PlanListItem,
   PlanListResponse,
   TestPlanSummary,
@@ -42,6 +43,26 @@ export async function createPlan(
   const res = await http.post<CreatePlanAccepted>(
     `/projects/${projectId}/plans`,
     body,
+  );
+  return res.data;
+}
+
+export async function getJobStatus(jobId: string): Promise<JobStatus> {
+  const res = await http.get<JobStatus>(`/jobs/${jobId}`);
+  return res.data;
+}
+
+export async function deletePlan(projectId: string, planId: string): Promise<void> {
+  await http.delete(`/projects/${projectId}/plans/${planId}`);
+}
+
+export async function exportPlanJson(
+  projectId: string,
+  planId: string,
+): Promise<Blob> {
+  const res = await http.get<Blob>(
+    `/projects/${projectId}/plans/${planId}/export.json`,
+    { responseType: "blob" },
   );
   return res.data;
 }

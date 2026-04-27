@@ -20,6 +20,8 @@
     "axios": "^1.7.7",
     "clsx": "^2.1.1",
     "cytoscape": "^3.30.2",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.7",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",

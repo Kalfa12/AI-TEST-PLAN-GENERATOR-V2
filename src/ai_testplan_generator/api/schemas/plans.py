@@ -12,7 +12,7 @@ from ai_testplan_generator.models import DetailLevel, TestPlan
 class CreatePlanRequest(BaseModel):
     goal: str
     detail_level: DetailLevel = DetailLevel.DETAILED
-    max_revision_rounds: int = Field(default=3, ge=1, le=10)
+    max_revision_rounds: int = Field(default=1, ge=1, le=10)
 
 
 class CreatePlanAccepted(BaseModel):

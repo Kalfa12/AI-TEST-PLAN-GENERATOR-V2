@@ -29,6 +29,19 @@ function buildElements(lineage: LineageResponse): ElementDefinition[] {
     [lineage.root.id]: lineage.root,
     ...lineage.nodes,
   };
+
+  // Add stub nodes for any edge endpoint we don't already have, so
+  // cytoscape doesn't reject the edges. Stubs render dimmer and use the
+  // ID prefix as the type when available (e.g. "sec_…" → "section").
+  for (const e of lineage.edges) {
+    if (!(e.source in allNodes)) {
+      allNodes[e.source] = { id: e.source, type: stubType(e.source), attributes: {} };
+    }
+    if (!(e.target in allNodes)) {
+      allNodes[e.target] = { id: e.target, type: stubType(e.target), attributes: {} };
+    }
+  }
+
   for (const id of Object.keys(allNodes)) {
     const n = allNodes[id];
     elements.push({
@@ -41,6 +54,7 @@ function buildElements(lineage: LineageResponse): ElementDefinition[] {
     });
   }
   for (const e of lineage.edges) {
+    if (!(e.source in allNodes) || !(e.target in allNodes)) continue;
     elements.push({
       data: {
         id: `${e.source}->${e.target}:${e.kind}`,
@@ -51,6 +65,23 @@ function buildElements(lineage: LineageResponse): ElementDefinition[] {
     });
   }
   return elements;
+}
+
+const STUB_TYPES: Record<string, string> = {
+  sec_: "section",
+  ch_: "chunk",
+  doc_: "document",
+  req_: "requirement",
+  tc_: "test_case",
+  st_: "step",
+  ac_: "acceptance",
+};
+
+function stubType(id: string): string {
+  for (const prefix of Object.keys(STUB_TYPES)) {
+    if (id.startsWith(prefix)) return STUB_TYPES[prefix];
+  }
+  return "unknown";
 }
 
 export function TraceabilityGraphPage() {
