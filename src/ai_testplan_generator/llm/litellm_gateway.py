@@ -210,10 +210,7 @@ class LiteLLMGateway(LLMGateway):
         # OpenAI / Azure / many compatible endpoints accept `response_format`;
         # providers that don't support JSON mode get `drop_params` treatment
         # and fall back to prompt-steering + tolerant parsing below.
-        response_format = {
-            "type": "json_schema",
-            "json_schema": {"name": schema.__name__, "schema": json_schema, "strict": True},
-        }
+        response_format = {"type": "json_object"}
 
         # Belt-and-braces: inject a system directive about the required shape.
         steered: list[ChatMessage] = list(messages)

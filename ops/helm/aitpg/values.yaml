@@ -1,0 +1,203 @@
+# AI Test Plan Generator — Helm values
+# Every knob is documented inline. This file is the authoritative reference
+# for cluster operators.
+
+# ---------------------------------------------------------------------------
+# Container image
+# ---------------------------------------------------------------------------
+image:
+  # Repository for both api and worker (same image, different command).
+  repository: ghcr.io/kalfa12/aitpg-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# ---------------------------------------------------------------------------
+# API deployment
+# ---------------------------------------------------------------------------
+api:
+  replicaCount: 2
+
+  # Resource requests/limits — tune after load testing (M38).
+  resources:
+    requests:
+      cpu: "250m"
+      memory: "512Mi"
+    limits:
+      cpu: "1"
+      memory: "1Gi"
+
+  # Additional environment variables injected directly (non-secret).
+  extraEnv: []
+  # - name: API_DEBUG
+  #   value: "false"
+
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# Worker deployment
+# ---------------------------------------------------------------------------
+worker:
+  replicaCount: 1
+
+  resources:
+    requests:
+      cpu: "500m"
+      memory: "1Gi"
+    limits:
+      cpu: "2"
+      memory: "2Gi"
+
+  extraEnv: []
+  podAnnotations: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+# ---------------------------------------------------------------------------
+# Service (ClusterIP for API)
+# ---------------------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8000
+
+# ---------------------------------------------------------------------------
+# Ingress
+# ---------------------------------------------------------------------------
+ingress:
+  enabled: false
+  # Ingress class name — must match your cluster's ingress controller.
+  className: nginx
+  annotations: {}
+  # kubernetes.io/tls-acme: "true"
+  hosts:
+    - host: aitpg.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: aitpg-tls
+  #   hosts:
+  #     - aitpg.example.com
+
+# ---------------------------------------------------------------------------
+# HPA — API scales on CPU
+# ---------------------------------------------------------------------------
+hpa:
+  api:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+
+  # Worker HPA uses a custom queue-depth metric (aitpg_job_queue_depth from
+  # M21). Enable only after the custom metrics adapter is deployed and the
+  # metric is available in the metrics API.
+  worker:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 8
+    # Name of the external metric exposed via the custom metrics adapter.
+    queueDepthMetricName: aitpg_job_queue_depth
+    targetQueueDepth: 5
+
+# ---------------------------------------------------------------------------
+# PodDisruptionBudget
+# ---------------------------------------------------------------------------
+pdb:
+  api:
+    enabled: true
+    minAvailable: 1
+  worker:
+    enabled: true
+    minAvailable: 1
+
+# ---------------------------------------------------------------------------
+# Non-secret environment variables (rendered into ConfigMap)
+# ---------------------------------------------------------------------------
+config:
+  LLM_MODEL_SMART: "claude-opus-4-1-20250805"
+  LLM_MODEL_BALANCED: "claude-sonnet-4-5-20250929"
+  LLM_MODEL_FAST: "claude-haiku-4-5-20251001"
+  LLM_MODEL_EMBEDDING: "text-embedding-3-large"
+  LLM_DEFAULT_TEMPERATURE: "0.1"
+  LLM_MAX_RETRIES: "4"
+  LLM_REQUEST_TIMEOUT_S: "120"
+
+  CHUNK_TARGET_TOKENS: "900"
+  CHUNK_OVERLAP_TOKENS: "120"
+  MAX_DOC_PAGES_WARN: "12000"
+
+  SEMANTIC_MEMORY_BACKEND: "qdrant"
+  EPISODIC_MEMORY_BACKEND: "sqlite"
+  CROSSDOC_GRAPH_BACKEND: "networkx"
+
+  QDRANT_URL: "http://qdrant:6333"
+  QDRANT_EMBEDDING_DIM: "3072"
+  QDRANT_COLLECTION_PREFIX: "aitpg"
+
+  SQLITE_EPISODIC_PATH: "data/episodic.db"
+
+  NEO4J_URI: "bolt://neo4j:7687"
+  NEO4J_USER: "neo4j"
+
+  BLOB_STORE_BACKEND: "local"
+  BLOB_STORE_LOCAL_ROOT: "./data/blobs"
+
+  API_DEBUG: "false"
+  API_CORS_ORIGINS: '["*"]'
+  APP_DB_PATH: "data/app.db"
+  MAX_UPLOAD_SIZE_BYTES: "104857600"
+  LARGE_DOC_THRESHOLD_BYTES: "5242880"
+
+  JWT_ALGORITHM: "RS256"
+  JWT_ACCESS_TOKEN_TTL_SECONDS: "900"
+  JWT_REFRESH_TOKEN_TTL_SECONDS: "1209600"
+
+  REDIS_URL: "redis://redis-master:6379/0"
+  JOB_WORKER_CONCURRENCY: "4"
+  EVENT_BROKER_BACKEND: "redis"
+
+  BLOB_KEK_VERSION: "v1"
+
+  OTEL_ENABLED: "false"
+  OTEL_SERVICE_NAME: "aitpg-api"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger-collector:4318"
+
+  METRICS_ENABLED: "true"
+  LOG_FORMAT: "json"
+  LOG_LEVEL: "INFO"
+  COST_TRACKING_ENABLED: "true"
+
+# ---------------------------------------------------------------------------
+# Secret environment variables (rendered into Kubernetes Secret)
+# All values are plain-text here; Helm base64-encodes them automatically.
+# In production, use external-secrets or Vault instead of setting these.
+# ---------------------------------------------------------------------------
+secrets:
+  ANTHROPIC_API_KEY: ""
+  OPENAI_API_KEY: ""
+  GOOGLE_API_KEY: ""
+  JWT_SECRET: "changeme-local-dev-only"
+  JWT_PRIVATE_KEY_PATH: ""
+  JWT_PUBLIC_KEY_PATH: ""
+  NEO4J_PASSWORD: "changeme"
+  QDRANT_API_KEY: ""
+  BLOB_ENCRYPTION_KEY: ""
+  GRAFANA_ADMIN_PASSWORD: "admin"
+
+# ---------------------------------------------------------------------------
+# Persistence — emptyDir used for /tmp (readOnlyRootFilesystem)
+# Production: mount a PVC here for data/blobs.
+# ---------------------------------------------------------------------------
+persistence:
+  enabled: false
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /app/data

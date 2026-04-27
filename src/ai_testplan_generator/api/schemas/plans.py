@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 from ai_testplan_generator.models import DetailLevel, TestPlan
@@ -17,6 +19,13 @@ class CreatePlanAccepted(BaseModel):
     job_id: str
     session_id: str
     message: str = "Plan generation started."
+
+
+class JobStatusResponse(BaseModel):
+    job_id: str
+    status: str
+    result: dict[str, Any] | None = None
+    error: str | None = None
 
 
 class PlanListItem(BaseModel):

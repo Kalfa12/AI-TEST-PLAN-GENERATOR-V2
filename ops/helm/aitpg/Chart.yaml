@@ -1,0 +1,12 @@
+apiVersion: v2
+name: aitpg
+description: AI Test Plan Generator — provider-agnostic multi-agent REST API
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - ai
+  - testing
+  - fastapi
+maintainers:
+  - name: SIGMAXIS x ENSAM Project 5

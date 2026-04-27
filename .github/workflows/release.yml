@@ -1,0 +1,108 @@
+name: Release
+
+# Triggered on semantic version tags (e.g. v1.2.3).
+# Publishes a versioned Docker image and Helm chart to GHCR OCI registry.
+# Chart choice: GHCR OCI registry (oci://ghcr.io/<owner>/charts/aitpg).
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write    # create GitHub release
+  packages: write    # push to GHCR
+
+jobs:
+
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed for changelog generation
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ------------------------------------------------------------------
+      # Docker image — versioned tag + latest
+      # ------------------------------------------------------------------
+      - name: Build and push versioned image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/aitpg-api:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/aitpg-api:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ------------------------------------------------------------------
+      # Helm chart — package and push to GHCR OCI registry
+      # ------------------------------------------------------------------
+      - uses: azure/setup-helm@v4
+        with:
+          version: "3.16.0"
+
+      - name: Package Helm chart
+        run: |
+          helm package ops/helm/aitpg --version "${{ github.ref_name }}" \
+            --app-version "${{ github.ref_name }}" \
+            --destination /tmp/helm-packages
+
+      - name: Push Helm chart to GHCR OCI
+        run: |
+          helm push /tmp/helm-packages/aitpg-${{ github.ref_name }}.tgz \
+            oci://ghcr.io/${{ github.repository_owner }}/charts
+
+      # ------------------------------------------------------------------
+      # Changelog — generated from PR titles since the previous tag
+      # ------------------------------------------------------------------
+      - name: Generate changelog
+        id: changelog
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            RANGE="HEAD"
+          else
+            RANGE="${PREV_TAG}..HEAD"
+          fi
+          CHANGELOG=$(git log "$RANGE" --merges --pretty=format:"- %s" \
+            | grep -v "^- Merge" || echo "- No merged pull requests found.")
+          echo "changelog<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$CHANGELOG" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+      # ------------------------------------------------------------------
+      # GitHub release
+      # ------------------------------------------------------------------
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: |
+            ## Changes
+
+            ${{ steps.changelog.outputs.changelog }}
+
+            ## Artifacts
+
+            - Docker image: `ghcr.io/${{ github.repository_owner }}/aitpg-api:${{ github.ref_name }}`
+            - Helm chart: `oci://ghcr.io/${{ github.repository_owner }}/charts/aitpg:${{ github.ref_name }}`
+
+            ### Pull with Helm
+            ```bash
+            helm upgrade --install aitpg \
+              oci://ghcr.io/${{ github.repository_owner }}/charts/aitpg \
+              --version ${{ github.ref_name }}
+            ```

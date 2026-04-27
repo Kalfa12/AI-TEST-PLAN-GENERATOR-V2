@@ -1,64 +1,167 @@
-version: "3.9"
-
 services:
-  # ── AI Test Plan Generator API ──────────────────────────────────────────
+
+  # ---------------------------------------------------------------------------
+  # API server
+  # ---------------------------------------------------------------------------
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: testplan-api
+    image: aitpg-api:local
     ports:
       - "8000:8000"
     env_file:
       - .env
     environment:
-      # Override memory backends when companion services are enabled.
-      - SEMANTIC_MEMORY_BACKEND=${SEMANTIC_MEMORY_BACKEND:-inmemory}
-      - EPISODIC_MEMORY_BACKEND=${EPISODIC_MEMORY_BACKEND:-inmemory}
-      - CROSSDOC_GRAPH_BACKEND=${CROSSDOC_GRAPH_BACKEND:-networkx}
+      REDIS_URL: "redis://redis:6379/0"
+      QDRANT_URL: "http://qdrant:6333"
+      NEO4J_URI: "bolt://neo4j:7687"
+      SEMANTIC_MEMORY_BACKEND: "inmemory"
+      EPISODIC_MEMORY_BACKEND: "sqlite"
+      CROSSDOC_GRAPH_BACKEND: "networkx"
+      EVENT_BROKER_BACKEND: "redis"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
       interval: 30s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      start_period: 40s
+      retries: 5
+
+  # ---------------------------------------------------------------------------
+  # ARQ background worker (same image, different entrypoint)
+  # ---------------------------------------------------------------------------
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aitpg-api:local
+    command: ["arq", "ai_testplan_generator.jobs.worker.WorkerSettings"]
+    env_file:
+      - .env
+    environment:
+      REDIS_URL: "redis://redis:6379/0"
+      QDRANT_URL: "http://qdrant:6333"
+      NEO4J_URI: "bolt://neo4j:7687"
+      SEMANTIC_MEMORY_BACKEND: "inmemory"
+      EPISODIC_MEMORY_BACKEND: "sqlite"
+      CROSSDOC_GRAPH_BACKEND: "networkx"
+      EVENT_BROKER_BACKEND: "redis"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4318"
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
-  # ── Qdrant (vector store) ── uncomment when using qdrant backend ──────
-  # qdrant:
-  #   image: qdrant/qdrant:latest
-  #   container_name: testplan-qdrant
-  #   ports:
-  #     - "6333:6333"    # REST API
-  #     - "6334:6334"    # gRPC
-  #   volumes:
-  #     - qdrant_data:/qdrant/storage
-  #   restart: unless-stopped
+  # ---------------------------------------------------------------------------
+  # Redis — job queue + event pub/sub
+  # ---------------------------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
-  # ── Redis (episodic store) ── uncomment when using redis backend ──────
-  # redis:
-  #   image: redis:7-alpine
-  #   container_name: testplan-redis
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis_data:/data
-  #   restart: unless-stopped
+  # ---------------------------------------------------------------------------
+  # Qdrant — vector semantic store
+  # ---------------------------------------------------------------------------
+  qdrant:
+    image: qdrant/qdrant:latest
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c",
+             "printf 'GET /healthz HTTP/1.0\\r\\n\\r\\n' | nc -w2 127.0.0.1 6333 | grep -q '200 OK'"]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
 
-  # ── Neo4j (graph store) ── uncomment when using neo4j backend ─────────
-  # neo4j:
-  #   image: neo4j:5-community
-  #   container_name: testplan-neo4j
-  #   ports:
-  #     - "7474:7474"    # Browser UI
-  #     - "7687:7687"    # Bolt protocol
-  #   environment:
-  #     - NEO4J_AUTH=neo4j/changeme
-  #   volumes:
-  #     - neo4j_data:/data
-  #   restart: unless-stopped
+  # ---------------------------------------------------------------------------
+  # Neo4j — cross-document traceability graph
+  # ---------------------------------------------------------------------------
+  neo4j:
+    image: neo4j:5
+    environment:
+      NEO4J_AUTH: "${NEO4J_AUTH:-neo4j/changeme}"
+    volumes:
+      - neo4j_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "bash", "-c",
+             "wget -qO- http://127.0.0.1:7474 > /dev/null 2>&1"]
+      interval: 20s
+      timeout: 5s
+      start_period: 30s
+      retries: 5
 
-# volumes:
-#   qdrant_data:
-#   redis_data:
-#   neo4j_data:
+  # ---------------------------------------------------------------------------
+  # Observability stack (opt-in via --profile observability)
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:latest
+    profiles: ["observability"]
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    profiles: ["observability"]
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: "${GRAFANA_ADMIN_PASSWORD:-admin}"
+      GF_PATHS_PROVISIONING: "/etc/grafana/provisioning"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./ops/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    profiles: ["observability"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"   # Jaeger UI
+      - "4317:4317"     # OTLP gRPC
+      - "4318:4318"     # OTLP HTTP
+    restart: unless-stopped
+
+# ---------------------------------------------------------------------------
+# Named volumes
+# ---------------------------------------------------------------------------
+volumes:
+  redis_data:
+  qdrant_data:
+  neo4j_data:
+  prometheus_data:
+  grafana_data:

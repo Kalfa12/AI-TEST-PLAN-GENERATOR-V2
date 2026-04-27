@@ -30,6 +30,7 @@ from ai_testplan_generator.api.schemas.plans import (
     CoverageMatrixResponse,
     CreatePlanAccepted,
     CreatePlanRequest,
+    JobStatusResponse,
     PlanListItem,
     PlanListResponse,
     TestPlanSummary,
@@ -193,3 +194,21 @@ async def delete_plan(
         await blob_store.delete(key)
     except Exception:
         pass
+
+
+@router.get(
+    "/jobs/{job_id}",
+    response_model=JobStatusResponse,
+    summary="Poll background job status (plan generation, ingest)",
+)
+async def get_job_status(
+    job_id: str,
+    job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
+) -> JobStatusResponse:
+    job = await job_queue.get_status(job_id)
+    return JobStatusResponse(
+        job_id=job.id,
+        status=job.status.value,
+        result=job.result,
+        error=job.error,
+    )

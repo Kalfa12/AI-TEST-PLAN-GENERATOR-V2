@@ -100,21 +100,37 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
 
         event_broker = build_event_broker(cfg)
 
+        app.state.jobs: dict[str, Job] = {}
+        app.state.plans: dict[str, Any] = {}
+        app.state.project_plans: dict[str, list[str]] = {}
+
         # ARQ Redis pool and job queue (M17).
         job_queue = None
         redis_pool = None
-        try:
-            import arq  # type: ignore[import-untyped]
-
-            redis_pool = await arq.create_pool(
-                arq.RedisSettings.from_dsn(cfg.redis_url)  # type: ignore[attr-defined]
+        if cfg.semantic_memory_backend == "inmemory":
+            from ai_testplan_generator.jobs.queue import FakeJobQueue
+            job_queue = FakeJobQueue(
+                brain=brain,
+                blob_store=blob_store,
+                event_broker=event_broker,
+                plans=app.state.plans,
+                project_plans=app.state.project_plans,
             )
-            from ai_testplan_generator.jobs.queue import JobQueue
+            _log.info("arq_pool_bypassed", reason="inmemory_semantic_backend")
+        else:
+            try:
+                import arq  # type: ignore[import-untyped]
 
-            job_queue = JobQueue(redis_pool)
-            _log.info("arq_pool_connected", redis_url=cfg.redis_url)
-        except Exception as arq_err:
-            _log.warning("arq_pool_unavailable", error=str(arq_err))
+                from arq.connections import RedisSettings
+                redis_pool = await arq.create_pool(
+                    RedisSettings.from_dsn(cfg.redis_url)  # type: ignore[attr-defined]
+                )
+                from ai_testplan_generator.jobs.queue import JobQueue
+
+                job_queue = JobQueue(redis_pool)
+                _log.info("arq_pool_connected", redis_url=cfg.redis_url)
+            except Exception as arq_err:
+                _log.warning("arq_pool_unavailable", error=str(arq_err))
 
         # Attach everything to app.state.
         app.state.brain = brain
@@ -124,9 +140,6 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         app.state.event_broker = event_broker
         app.state.job_queue = job_queue  # None when Redis is unavailable
         app.state.redis_pool = redis_pool
-        app.state.jobs: dict[str, Job] = {}
-        app.state.plans: dict[str, Any] = {}
-        app.state.project_plans: dict[str, list[str]] = {}
 
         _log.info("api_ready",
                   llm_smart=cfg.models.smart,

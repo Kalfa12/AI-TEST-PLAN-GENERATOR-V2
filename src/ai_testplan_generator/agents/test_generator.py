@@ -118,7 +118,14 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
             draft = await self.ctx.llm.complete_structured(
                 messages, _DraftCase, role="balanced", temperature=0.2
             )
-        except Exception:
+        except Exception as e:
+            import structlog
+            structlog.get_logger(__name__).error(
+                "test_generation_failed", 
+                req_id=req.id, 
+                error=str(e),
+                error_type=type(e).__name__
+            )
             return None
 
         return TestCase(

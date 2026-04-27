@@ -94,6 +94,8 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
                 requirements=state.requirements, detail_level=state.detail_level
             )
         )
+        if not out.test_cases:
+            return {"error": "generator failed to produce any valid test cases (all LLM calls failed or timed out)"}
         state.plan.test_cases = out.test_cases
         return {"plan": state.plan, "test_cases": out.test_cases}
 

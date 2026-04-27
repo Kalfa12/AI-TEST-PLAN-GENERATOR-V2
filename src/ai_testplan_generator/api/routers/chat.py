@@ -21,6 +21,7 @@ from ai_testplan_generator.api.schemas.chat import (
     ConfirmRequest,
     HistoryResponse,
 )
+from ai_testplan_generator.llm.base import ChatMessage
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.pipelines.interactive import InteractivePipeline
 
@@ -100,8 +101,8 @@ async def chat_stream(
         while True:
             message = await websocket.receive_text()
             full_text: list[str] = []
-            async for token in await brain.llm.stream(
-                [{"role": "user", "content": message}],  # type: ignore[list-item]
+            async for token in brain.llm.stream(
+                [ChatMessage(role="user", content=message)],
                 role="balanced",
             ):
                 full_text.append(token)

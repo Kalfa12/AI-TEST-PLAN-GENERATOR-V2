@@ -1,0 +1,51 @@
+{{- if .Values.hpa.api.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "aitpg.fullname" . }}-api
+  labels:
+    {{- include "aitpg.labels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "aitpg.fullname" . }}-api
+  minReplicas: {{ .Values.hpa.api.minReplicas }}
+  maxReplicas: {{ .Values.hpa.api.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.api.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.hpa.worker.enabled }}
+# Worker HPA uses the custom metric aitpg_job_queue_depth (M21).
+# Prerequisite: a custom-metrics adapter (e.g. prometheus-adapter) must expose
+# this metric via the custom.metrics.k8s.io API before enabling this HPA.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "aitpg.fullname" . }}-worker
+  labels:
+    {{- include "aitpg.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "aitpg.fullname" . }}-worker
+  minReplicas: {{ .Values.hpa.worker.minReplicas }}
+  maxReplicas: {{ .Values.hpa.worker.maxReplicas }}
+  metrics:
+    - type: External
+      external:
+        metric:
+          name: {{ .Values.hpa.worker.queueDepthMetricName }}
+        target:
+          type: AverageValue
+          averageValue: {{ .Values.hpa.worker.targetQueueDepth }}
+{{- end }}

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated, cast
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, WebSocket
 
 from ai_testplan_generator.api.errors import AuthError
 from ai_testplan_generator.api.jobs import Job
@@ -21,9 +21,9 @@ from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
 
-
-def get_brain(request: Request) -> Brain:
-    return cast(Brain, request.app.state.brain)
+def get_brain(request: Request = None, websocket: WebSocket = None) -> Brain:
+    conn = request if request else websocket
+    return cast(Brain, conn.app.state.brain)
 
 
 def get_settings(request: Request) -> Settings:
