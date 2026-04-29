@@ -225,12 +225,14 @@ class FakeJobQueue:
         from ai_testplan_generator.jobs.tasks.autonomous import (
             delete_project_artefacts,
             run_autonomous,
+            run_autonomous_interactive,
         )
         from ai_testplan_generator.jobs.tasks.ingest import ingest_document
 
         task_map: dict[str, Any] = {
             "ingest_document": ingest_document,
             "run_autonomous": run_autonomous,
+            "run_autonomous_interactive": run_autonomous_interactive,
             "delete_project_artefacts": delete_project_artefacts,
         }
 
@@ -239,7 +241,14 @@ class FakeJobQueue:
 
         fn = task_map.get(task_name)
         if fn is not None:
-            ctx = {**self._ctx, "job_id": job.id, "job_try": 1}
+            ctx = {
+                **self._ctx,
+                "job_id": job.id,
+                "job_try": 1,
+                # Interactive runs need the live Job objects to signal
+                # pause/resume; expose the registry through ctx.
+                "jobs_index": self._jobs,
+            }
             asyncio.create_task(self._run(job, fn, ctx, kwargs))
 
         return job.id

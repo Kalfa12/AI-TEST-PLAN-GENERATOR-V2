@@ -10,6 +10,7 @@ import { LoginForm } from "@/features/auth/login-form";
 import { ProjectsPage } from "@/features/projects/projects-page";
 import { ProjectDashboard } from "@/features/projects/project-dashboard";
 import { PlanDetailPage } from "@/features/plans/plan-detail";
+import { RunWorkspacePage } from "@/features/plans/run-workspace";
 import { ChatPage } from "@/features/chat/chat-page";
 import { TraceabilityGraphPage } from "@/features/traceability/graph-view";
 import { AdminPage } from "@/features/admin/admin-page";
@@ -56,6 +57,12 @@ const planDetailRoute = createRoute({
   component: PlanDetailPage,
 });
 
+const runWorkspaceRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/projects/$projectId/runs/$jobId",
+  component: RunWorkspacePage,
+});
+
 const chatRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/chat/$sessionId",
@@ -93,6 +100,7 @@ const routeTree = rootRoute.addChildren([
     projectsRoute,
     projectDetailRoute,
     planDetailRoute,
+    runWorkspaceRoute,
     chatRoute,
     traceabilityRoute,
     knowledgeRoute,

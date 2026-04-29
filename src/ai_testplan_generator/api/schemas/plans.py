@@ -13,6 +13,9 @@ class CreatePlanRequest(BaseModel):
     goal: str
     detail_level: DetailLevel = DetailLevel.DETAILED
     max_revision_rounds: int = Field(default=1, ge=1, le=10)
+    # When true, the run pauses after extractor / architect / generator
+    # for user accept-or-reprompt feedback before continuing.
+    interactive: bool = False
 
 
 class CreatePlanAccepted(BaseModel):
@@ -26,6 +29,18 @@ class JobStatusResponse(BaseModel):
     status: str
     result: dict[str, Any] | None = None
     error: str | None = None
+    paused_at: str | None = None
+
+
+class CheckpointResponse(BaseModel):
+    job_id: str
+    paused_at: str  # "extractor" | "architect" | "generator"
+    state: dict[str, Any]  # serialised AutonomousState
+
+
+class ResumeRequest(BaseModel):
+    action: str  # "accept" | "reprompt" | "abort"
+    feedback: str | None = None
 
 
 class PlanListItem(BaseModel):

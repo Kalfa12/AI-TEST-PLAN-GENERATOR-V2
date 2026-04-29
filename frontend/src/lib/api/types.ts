@@ -188,4 +188,17 @@ export interface JobStatus {
   error: string | null;
   created_at: string;
   updated_at: string;
+  paused_at?: string | null;
+}
+
+export interface CheckpointResponse {
+  job_id: string;
+  paused_at: "extractor" | "architect" | "generator";
+  state: {
+    requirements?: Array<Record<string, unknown>>;
+    plan?: Record<string, unknown> | null;
+    test_cases?: Array<Record<string, unknown>>;
+    user_feedback?: Record<string, string[]>;
+    [k: string]: unknown;
+  };
 }

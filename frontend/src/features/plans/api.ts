@@ -1,5 +1,6 @@
 import { http } from "@/lib/api/http";
 import type {
+  CheckpointResponse,
   CoverageMatrixResponse,
   CreatePlanAccepted,
   JobStatus,
@@ -38,12 +39,29 @@ export async function getPlanCoverage(
 
 export async function createPlan(
   projectId: string,
-  body: { goal: string; detail_level: "summary" | "detailed" },
+  body: {
+    goal: string;
+    detail_level: "summary" | "detailed";
+    interactive?: boolean;
+  },
 ): Promise<CreatePlanAccepted> {
   const res = await http.post<CreatePlanAccepted>(
     `/projects/${projectId}/plans`,
     body,
   );
+  return res.data;
+}
+
+export async function getCheckpoint(jobId: string): Promise<CheckpointResponse> {
+  const res = await http.get<CheckpointResponse>(`/jobs/${jobId}/checkpoint`);
+  return res.data;
+}
+
+export async function resumeJob(
+  jobId: string,
+  body: { action: "accept" | "reprompt" | "abort"; feedback?: string },
+): Promise<JobStatus> {
+  const res = await http.post<JobStatus>(`/jobs/${jobId}/resume`, body);
   return res.data;
 }
 

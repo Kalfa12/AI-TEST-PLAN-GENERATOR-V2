@@ -43,9 +43,16 @@ class _ExtractorOutput(BaseModel):
 class RequirementExtractor:
     """LLM-powered extractor. One instance per project."""
 
-    def __init__(self, gateway: LLMGateway, *, project_id: str | None = None) -> None:
+    def __init__(
+        self,
+        gateway: LLMGateway,
+        *,
+        project_id: str | None = None,
+        user_feedback: list[str] | None = None,
+    ) -> None:
         self._llm = gateway
         self._project_id = project_id
+        self._user_feedback = user_feedback or []
 
     async def extract_from_chunk(self, chunk: Chunk) -> list[Requirement]:
         # Skip chunks that are extremely unlikely to contain requirements.
@@ -54,8 +61,16 @@ class RequirementExtractor:
         if len(chunk.text) < 30:
             return []
 
+        feedback_block = ""
+        if self._user_feedback:
+            joined = "\n".join(f"- {f}" for f in self._user_feedback)
+            feedback_block = (
+                "\n\nUSER FEEDBACK FROM PREVIOUS ROUND(S) — apply these corrections:\n"
+                f"{joined}\n"
+            )
+
         messages = [
-            ChatMessage(role="system", content=REQUIREMENT_EXTRACTOR_SYSTEM),
+            ChatMessage(role="system", content=REQUIREMENT_EXTRACTOR_SYSTEM + feedback_block),
             ChatMessage(
                 role="user",
                 content=(

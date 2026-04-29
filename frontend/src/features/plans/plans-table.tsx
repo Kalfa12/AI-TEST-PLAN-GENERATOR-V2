@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { Link } from "@tanstack/react-router";
+import { Link, useNavigate } from "@tanstack/react-router";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,6 +17,7 @@ import { AgentProgress } from "./agent-progress";
 const schema = z.object({
   goal: z.string().min(1, "Goal is required"),
   detail_level: z.enum(["summary", "detailed"]).default("detailed"),
+  interactive: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -31,6 +32,7 @@ export function PlansTable({ projectId }: { projectId: string }) {
   const create = useCreatePlan(projectId);
   const del = useDeletePlan(projectId);
   const toast = useToast();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
 
@@ -51,7 +53,7 @@ export function PlansTable({ projectId }: { projectId: string }) {
   };
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
-    defaultValues: { goal: "", detail_level: "detailed" },
+    defaultValues: { goal: "", detail_level: "detailed", interactive: false },
   });
 
   const handleJobDone = useCallback((_planId: string | null) => {
@@ -66,14 +68,23 @@ export function PlansTable({ projectId }: { projectId: string }) {
   const onSubmit = async (values: FormValues) => {
     try {
       const r = await create.mutateAsync(values);
+      setOpen(false);
+      form.reset();
+      if (values.interactive) {
+        // Interactive runs go straight to the workspace where the user
+        // can accept / reprompt at each checkpoint.
+        navigate({
+          to: "/projects/$projectId/runs/$jobId",
+          params: { projectId, jobId: r.job_id },
+        });
+        return;
+      }
       setActiveJob({ jobId: r.job_id, sessionId: r.session_id });
       toast.push({
         title: "Plan generation started",
         description: "Agents are working on your plan…",
         tone: "info",
       });
-      setOpen(false);
-      form.reset();
     } catch (e) {
       toast.push({
         title: "Failed to start plan",
@@ -179,6 +190,23 @@ export function PlansTable({ projectId }: { projectId: string }) {
               <option value="detailed">Detailed</option>
               <option value="summary">Summary</option>
             </select>
+          </div>
+          <div className="rounded-md border border-border bg-muted/30 p-3">
+            <label className="flex items-start gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5"
+                {...form.register("interactive")}
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">Interactive mode</div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Pause after each major step (requirements, strategy, test cases)
+                  so you can accept the output or send the agent feedback before continuing.
+                  Recommended for high-stakes plans.
+                </p>
+              </div>
+            </label>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

@@ -29,6 +29,7 @@ class _GenInput(BaseModel):
     requirements: list[Requirement]
     detail_level: DetailLevel = DetailLevel.DETAILED
     concurrency: int = 8
+    user_feedback: list[str] = Field(default_factory=list)
 
 
 class _GenOutput(BaseModel):
@@ -83,7 +84,9 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
 
         async def one(req: Requirement) -> TestCase | None:
             async with sem:
-                return await self._generate_for_requirement(req, inp.detail_level)
+                return await self._generate_for_requirement(
+                    req, inp.detail_level, inp.user_feedback
+                )
 
         results = await asyncio.gather(*[one(r) for r in inp.requirements])
         cases = [r for r in results if r is not None]
@@ -91,7 +94,10 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
         return _GenOutput(test_cases=cases)
 
     async def _generate_for_requirement(
-        self, req: Requirement, detail_level: DetailLevel
+        self,
+        req: Requirement,
+        detail_level: DetailLevel,
+        user_feedback: list[str] | None = None,
     ) -> TestCase | None:
         # Retrieve the immediate source chunks + nearby context.
         source_chunks = await self.ctx.memory.get_chunks_by_ids(req.source_chunk_ids)
@@ -110,8 +116,16 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
                 continue
             ctx_lines.append(f"[RELATED:{ch.id}] {ch.text[:500]}")
 
+        feedback_block = ""
+        if user_feedback:
+            joined = "\n".join(f"- {f}" for f in user_feedback)
+            feedback_block = (
+                "\n\nUSER FEEDBACK FROM PREVIOUS ROUND(S) — apply these corrections:\n"
+                f"{joined}\n"
+            )
+
         messages = [
-            ChatMessage(role="system", content=TEST_GENERATOR_SYSTEM),
+            ChatMessage(role="system", content=TEST_GENERATOR_SYSTEM + feedback_block),
             ChatMessage(
                 role="user",
                 content=(

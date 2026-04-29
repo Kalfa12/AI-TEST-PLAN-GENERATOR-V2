@@ -18,6 +18,7 @@ class _ArchitectInput(BaseModel):
     goal: str
     detail_level: DetailLevel = DetailLevel.DETAILED
     requirements: list[Requirement] = Field(default_factory=list)
+    user_feedback: list[str] = Field(default_factory=list)
 
 
 class _ArchitectOutput(BaseModel):
@@ -52,8 +53,16 @@ class TestArchitectAgent(BaseAgent[_ArchitectInput, TestPlan]):
             else ""
         )
 
+        feedback_block = ""
+        if inp.user_feedback:
+            joined = "\n".join(f"- {f}" for f in inp.user_feedback)
+            feedback_block = (
+                "\n\nUSER FEEDBACK FROM PREVIOUS ROUND(S) — apply these corrections:\n"
+                f"{joined}\n"
+            )
+
         messages = [
-            ChatMessage(role="system", content=TEST_ARCHITECT_SYSTEM),
+            ChatMessage(role="system", content=TEST_ARCHITECT_SYSTEM + feedback_block),
             ChatMessage(
                 role="user",
                 content=(

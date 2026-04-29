@@ -122,6 +122,109 @@ async def run_autonomous(
         raise
 
 
+async def run_autonomous_interactive(
+    ctx: dict[str, Any],
+    *,
+    project_id: str,
+    goal: str,
+    detail_level: str,
+    max_revision_rounds: int,
+    session_id: str,
+) -> dict[str, Any]:
+    """Run the user-gated autonomous pipeline.
+
+    Pauses at extractor / architect / generator and waits for the resume
+    endpoint to inject directives onto the Job. Only works in-process
+    (FakeJobQueue) — the paused state is held in memory.
+    """
+    from ai_testplan_generator.models import DetailLevel
+    from ai_testplan_generator.pipelines.interactive_run import (
+        ResumeAborted,
+        run_interactive,
+    )
+
+    brain = ctx["brain"]
+    blob_store = ctx["blob_store"]
+    event_broker = ctx.get("event_broker")
+    plans: dict[str, Any] = ctx.get("plans", {})
+    project_plans: dict[str, list[str]] = ctx.get("project_plans", {})
+    job_id: str = ctx.get("job_id", "unknown")
+    jobs_index: dict[str, Any] = ctx.get("jobs_index", {})
+
+    job = jobs_index.get(job_id)
+    if job is None:
+        raise RuntimeError(
+            f"Interactive runs require an in-process Job; '{job_id}' missing"
+        )
+
+    topic_sess = f"session:{session_id}"
+
+    try:
+        if event_broker is not None:
+            await event_broker.publish(topic_sess, {
+                "kind": "agent_start",
+                "actor": "orchestrator",
+                "content": "Starting interactive plan generation.",
+            })
+
+        result = await run_interactive(
+            brain=brain,
+            job=job,
+            project_id=project_id,
+            goal=goal,
+            detail_level=DetailLevel(detail_level),
+            max_revision_rounds=max_revision_rounds,
+            session_id=session_id,
+        )
+        plan = result["plan"]
+
+        plan_key = f"projects/{project_id}/plans/{plan.id}.json"
+        await blob_store.put(
+            plan_key, plan.model_dump_json().encode(), "application/json"
+        )
+        plans[plan.id] = plan
+        project_plans.setdefault(project_id, []).append(plan.id)
+
+        out: dict[str, Any] = {
+            "plan_id": plan.id,
+            "n_test_cases": len(plan.test_cases),
+        }
+
+        if event_broker is not None:
+            await event_broker.publish(topic_sess, {
+                "kind": "agent_done",
+                "actor": "orchestrator",
+                "content": "Interactive plan generation complete.",
+                "metadata": out,
+            })
+            await event_broker.close_topic(topic_sess)
+
+        _log.info("interactive_autonomous_done", job_id=job_id, plan_id=plan.id)
+        return out
+
+    except ResumeAborted:
+        _log.info("interactive_aborted", job_id=job_id)
+        if event_broker is not None:
+            await event_broker.publish(topic_sess, {
+                "kind": "agent_error",
+                "actor": "orchestrator",
+                "content": "Run aborted by user.",
+            })
+            await event_broker.close_topic(topic_sess)
+        return {"aborted": True}
+
+    except Exception as exc:
+        if event_broker is not None:
+            await event_broker.publish(topic_sess, {
+                "kind": "agent_error",
+                "actor": "orchestrator",
+                "content": str(exc),
+            })
+            await event_broker.close_topic(topic_sess)
+        _log.error("interactive_autonomous_error", job_id=job_id, error=str(exc))
+        raise
+
+
 async def delete_project_artefacts(
     ctx: dict[str, Any],
     *,

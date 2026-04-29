@@ -54,6 +54,12 @@ class AutonomousState(BaseModel):
     finished: bool = False
     error: str | None = None
 
+    # Interactive mode: per-agent free-text feedback the user provided when
+    # they rejected an earlier output. Each entry accumulates across rounds
+    # so the agent can see the whole correction history.
+    interactive: bool = False
+    user_feedback: dict[str, list[str]] = Field(default_factory=dict)
+
 
 class InteractiveState(BaseModel):
     """State for the chat/copilot graph."""
