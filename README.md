@@ -336,8 +336,6 @@ Production-grade visibility was a hard requirement from day one:
 
 [`mockup.html`](mockup.html) — single-file polished mockup of the six main screens (project dashboard, plan generation workspace with interactive checkpoints, plan detail, knowledge base, traceability graph, copilot chat). Open in any browser; no build step.
 
-[`STATUS.html`](STATUS.html) — narrative status document with architecture, design decisions, and known limits.
-
 ---
 
 ## 12. Roadmap
