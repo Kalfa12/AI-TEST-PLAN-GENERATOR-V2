@@ -105,6 +105,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         app.state.jobs: dict[str, Job] = {}
         app.state.plans: dict[str, Any] = {}
         app.state.project_plans: dict[str, list[str]] = {}
+        app.state.defects: dict[str, Any] = {}
 
         # ARQ Redis pool and job queue (M17).
         job_queue = None
@@ -117,6 +118,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
                 event_broker=event_broker,
                 plans=app.state.plans,
                 project_plans=app.state.project_plans,
+                defects=app.state.defects,
             )
             _log.info("arq_pool_bypassed", reason="inmemory_semantic_backend")
         else:
@@ -304,12 +306,14 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     from ai_testplan_generator.api.routers.health import router as health_router
     from ai_testplan_generator.api.routers.plans import router as plans_router
     from ai_testplan_generator.api.routers.projects import router as projects_router
+    from ai_testplan_generator.api.routers.quality import router as quality_router
     from ai_testplan_generator.api.routers.traceability import router as trace_router
 
     app.include_router(health_router)
     app.include_router(auth_router)
     app.include_router(docs_router)
     app.include_router(plans_router)
+    app.include_router(quality_router)
     app.include_router(chat_router)
     app.include_router(trace_router)
     app.include_router(projects_router)

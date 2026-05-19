@@ -20,18 +20,20 @@ from uuid import uuid4
 
 import structlog
 
-from ai_testplan_generator.agents import AutonomousState
+from ai_testplan_generator.agents import AutonomousState, build_defect_report
 from ai_testplan_generator.agents.base import AgentContext
 from ai_testplan_generator.agents.document_analyst import DocumentAnalystAgent
 from ai_testplan_generator.agents.planner import PlannerAgent
 from ai_testplan_generator.agents.requirement_extractor import RequirementExtractorAgent
+from ai_testplan_generator.agents.requirement_reviewer import RequirementReviewerAgent
 from ai_testplan_generator.agents.reviewer import ReviewerAgent
 from ai_testplan_generator.agents.test_architect import TestArchitectAgent
 from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
 from ai_testplan_generator.agents.traceability import TraceabilityAgent
 from ai_testplan_generator.api.jobs import Job, JobStatus
-from ai_testplan_generator.models import Chunk, DetailLevel, TestPlan
+from ai_testplan_generator.models import Chunk, DefectReport, DetailLevel, TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
+from ai_testplan_generator.quality import check_requirements, check_test_plan
 
 _log = structlog.get_logger(__name__)
 
@@ -103,6 +105,7 @@ async def run_interactive(
             )
         )
         state.requirements = out_e.requirements
+        _update_partial_defects(state)
         directive = await _await_user(job, agent="extractor", state=state)
         if directive.action == "accept":
             break
@@ -152,6 +155,7 @@ async def run_interactive(
             )
         plan.test_cases = out_g.test_cases
         state.test_cases = out_g.test_cases
+        _update_partial_defects(state)
         directive = await _await_user(job, agent="generator", state=state)
         if directive.action == "accept":
             break
@@ -160,7 +164,13 @@ async def run_interactive(
         if directive.action == "reprompt" and directive.feedback:
             state.user_feedback.setdefault("generator", []).append(directive.feedback)
 
-    # ---- tail: traceability + reviewer + planner (no checkpoints)
+    # ---- tail: requirement-review + traceability + reviewer + defects + planner
+    req_reviewer = RequirementReviewerAgent(ctx)
+    req_review_report = await req_reviewer.invoke(
+        RequirementReviewerAgent.Input(requirements=state.requirements)
+    )
+    state.requirement_review_report = req_review_report
+
     trace = TraceabilityAgent(ctx)
     trace_report = await trace.invoke(
         TraceabilityAgent.Input(plan=plan, requirements=state.requirements)
@@ -171,6 +181,14 @@ async def run_interactive(
     review_report = await reviewer.invoke(ReviewerAgent.Input(plan=plan))
     state.review_report = review_report
 
+    state.defect_report = build_defect_report(
+        plan=plan,
+        requirements=state.requirements,
+        review_report=state.review_report,
+        requirement_review_report=state.requirement_review_report,
+        trace_report=state.trace_report,
+    )
+
     planner = PlannerAgent(ctx)
     schedule = await planner.invoke(PlannerAgent.Input(plan=plan, resources=[]))
     state.schedule = schedule
@@ -179,6 +197,7 @@ async def run_interactive(
         "plan_id": plan.id,
         "n_test_cases": len(plan.test_cases),
         "plan": plan,
+        "defect_report": state.defect_report,
     }
 
 
@@ -216,3 +235,20 @@ def submit_directive(job: Job, directive: ResumeDirective) -> bool:
 # autonomous variant.
 def make_session_id() -> str:
     return f"sess_{uuid4().hex[:10]}"
+
+
+def _update_partial_defects(state: AutonomousState) -> None:
+    """Refresh the static-checker portion of the defect report on the live state.
+
+    Used at interactive checkpoints so the UI can badge defective rows
+    before the full aggregator runs at the tail of the pipeline.
+    """
+    defects = list(check_requirements(state.requirements))
+    if state.plan is not None:
+        defects.extend(check_test_plan(state.plan, state.requirements))
+    report = DefectReport(
+        plan_id=state.plan.id if state.plan else None,
+        defects=defects,
+    )
+    report.compute_summary()
+    state.defect_report = report

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
 from ai_testplan_generator.models import TestPlan
+from ai_testplan_generator.models.defects import DefectType
 from ai_testplan_generator.prompts.library import REVIEWER_SYSTEM
 
 Severity = Literal["critical", "major", "minor"]
@@ -21,9 +22,11 @@ Severity = Literal["critical", "major", "minor"]
 
 class ReviewFinding(BaseModel):
     test_case_id: str | None = None
+    requirement_id: str | None = None
     severity: Severity
     summary: str
     suggestion: str
+    defect_type: DefectType | None = None
 
 
 class ReviewReport(BaseModel):

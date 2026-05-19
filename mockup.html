@@ -1,0 +1,1000 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Test Plan Generator — Product Mockup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --canvas: #0b0d10;
+      --frame-border: #1f2937;
+      --frame-label: #94a3b8;
+    }
+    html, body { background: var(--canvas); }
+    body { font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; font-feature-settings: "cv11", "ss01"; }
+    .mono { font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace; }
+    .tabular { font-variant-numeric: tabular-nums; }
+    .frame {
+      background: #ffffff;
+      border-radius: 12px;
+      box-shadow: 0 0 0 1px var(--frame-border), 0 24px 60px -20px rgba(0,0,0,.6);
+      overflow: hidden;
+    }
+    .frame-label { color: var(--frame-label); }
+    .scrollbar-thin::-webkit-scrollbar { width: 6px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    /* Custom progress bar */
+    .progress-track { background: #e2e8f0; }
+    .progress-fill { background: linear-gradient(90deg, #1d4ed8, #3b82f6); }
+  </style>
+</head>
+<body class="text-slate-900">
+
+<!-- ============================================================
+     COVER — project intro
+============================================================ -->
+<header class="max-w-[1400px] mx-auto px-8 pt-16 pb-12">
+  <div class="flex items-end gap-4 mb-2">
+    <span class="mono text-xs frame-label">PRODUCT MOCKUP / 2026</span>
+    <span class="h-px flex-1 bg-slate-700"></span>
+  </div>
+  <h1 class="text-white text-5xl font-semibold tracking-tight leading-none mb-3">AI Test Plan Generator</h1>
+  <p class="text-slate-400 text-lg max-w-3xl mb-6 leading-relaxed">
+    A multi-agent system that turns engineering specifications into ISO-compliant test plans.
+    Built for QA teams in aerospace, automotive, and energy where every requirement must be traceable
+    and every test reviewable.
+  </p>
+  <div class="flex flex-wrap gap-2">
+    <span class="mono text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Python · FastAPI</span>
+    <span class="mono text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">LangGraph · LiteLLM</span>
+    <span class="mono text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">React · TypeScript</span>
+    <span class="mono text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Postgres · Redis · ARQ</span>
+    <span class="mono text-xs px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700">Docker · Helm</span>
+  </div>
+</header>
+
+<main class="max-w-[1400px] mx-auto px-8 pb-24 space-y-16">
+
+  <!-- ============================================================
+       FRAME 01 — Project Dashboard
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">01 / PROJECT DASHBOARD</span>
+      <span class="text-slate-300 text-sm">Single-pane overview: ingested documents, generated plans, requirement coverage, team and chats.</span>
+    </div>
+    <div class="frame">
+      <div class="flex" style="height: 880px;">
+        <!-- Sidebar -->
+        <aside class="w-56 border-r border-slate-200 bg-slate-50/60 flex flex-col">
+          <div class="p-4 border-b border-slate-200">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-md bg-slate-900 grid place-items-center">
+                <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3l6 0M12 3v6m-9 5l9-2 9 2-9 9-9-9z"/></svg>
+              </div>
+              <div>
+                <div class="text-[13px] font-semibold leading-tight">Test Plan Generator</div>
+                <div class="text-[10px] text-slate-500 mono">tahaelyounsi@…</div>
+              </div>
+            </div>
+          </div>
+          <nav class="p-2 space-y-0.5 flex-1 text-sm">
+            <div class="px-2 pt-2 pb-1 text-[10px] mono uppercase tracking-wider text-slate-400">Workspace</div>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md bg-slate-900 text-white">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+              Projects
+            </a>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 text-slate-700">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5M3 18l9 5 9-5"/></svg>
+              Knowledge base
+            </a>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 text-slate-700">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.59 13.51l6.83 3.98M15.41 6.51l-6.82 3.98"/></svg>
+              Traceability
+            </a>
+            <div class="px-2 pt-4 pb-1 text-[10px] mono uppercase tracking-wider text-slate-400">Settings</div>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 text-slate-700">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 2l-2 2m-7 7L9 14m0 0l-3 3m3-3l-3-3m3 3l3 3m4-9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z"/></svg>
+              API keys
+            </a>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md hover:bg-slate-100 text-slate-700">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M12 6V4m0 16v-2M6 12H4m16 0h-2M7.5 7.5L6 6m13.5 13.5L18 18M7.5 16.5L6 18m12-12l-1.5 1.5"/><circle cx="12" cy="12" r="3"/></svg>
+              Admin
+            </a>
+          </nav>
+          <div class="p-3 border-t border-slate-200">
+            <button class="w-full text-left text-xs text-slate-500 hover:text-slate-900 px-2 py-1.5 rounded-md hover:bg-slate-100 flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+              Sign out
+            </button>
+          </div>
+        </aside>
+
+        <!-- Main -->
+        <div class="flex-1 overflow-y-auto scrollbar-thin">
+          <!-- Project header -->
+          <div class="px-8 py-6 border-b border-slate-200">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <span>Projects</span>
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  <span class="mono">proj_62d9e9b878</span>
+                </div>
+                <h1 class="text-2xl font-semibold tracking-tight">Aero-Hyd Pump Controller v3</h1>
+                <p class="text-sm text-slate-500 mt-1">Qualification campaign for the redesigned hydraulic pump ECU under DO-178C / ARP4754A.</p>
+              </div>
+              <div class="flex gap-2">
+                <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Edit</button>
+                <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Archive</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stat cards -->
+          <div class="grid grid-cols-3 gap-4 px-8 py-6">
+            <div class="rounded-lg border border-slate-200 p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Documents</div>
+              <div class="text-3xl font-semibold tabular">4</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Plans</div>
+              <div class="text-3xl font-semibold tabular">2</div>
+            </div>
+            <div class="rounded-lg border border-slate-200 p-4">
+              <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Last activity</div>
+              <div class="text-sm font-medium pt-1">Apr 28, 2026 · 14:22 UTC</div>
+            </div>
+          </div>
+
+          <!-- Coverage card -->
+          <div class="px-8 pb-6">
+            <div class="rounded-lg border border-slate-200">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <div class="text-sm font-semibold">Requirement coverage</div>
+                <span class="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 mono">85%</span>
+              </div>
+              <div class="px-4 py-4 space-y-3">
+                <div class="text-sm"><span class="font-semibold tabular">23</span> <span class="text-slate-500">/ 27 requirements covered by at least one test case</span></div>
+                <div class="h-2 progress-track rounded-full overflow-hidden">
+                  <div class="h-full progress-fill" style="width: 85%"></div>
+                </div>
+                <div>
+                  <div class="text-[10px] mono uppercase tracking-wider text-slate-500 mb-1.5">Uncovered (4)</div>
+                  <div class="flex flex-wrap gap-1.5">
+                    <span class="mono text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100">REQ-014</span>
+                    <span class="mono text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100">REQ-019</span>
+                    <span class="mono text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100">REQ-022</span>
+                    <span class="mono text-xs px-2 py-0.5 rounded-full bg-red-50 text-red-800 border border-red-100">REQ-026</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Documents card -->
+          <div class="px-8 pb-6">
+            <div class="rounded-lg border border-slate-200">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <div class="text-sm font-semibold">Documents</div>
+                <button class="text-xs px-2.5 py-1 rounded-md bg-slate-900 text-white">Upload</button>
+              </div>
+              <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-slate-50/60">
+                  <tr>
+                    <th class="text-left font-medium px-4 py-2.5">Title</th>
+                    <th class="text-left font-medium px-4 py-2.5">Kind</th>
+                    <th class="text-left font-medium px-4 py-2.5">Scope</th>
+                    <th class="text-left font-medium px-4 py-2.5">Chunks</th>
+                    <th class="text-left font-medium px-4 py-2.5">Ingested</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <tr class="hover:bg-slate-50/60">
+                    <td class="px-4 py-2.5 font-medium">SRS_PumpController_v3.pdf</td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">specification</span></td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Project</span></td>
+                    <td class="px-4 py-2.5 tabular">218</td>
+                    <td class="px-4 py-2.5 text-slate-500">Apr 24</td>
+                    <td class="px-4 py-2.5 text-right space-x-1">
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Download</button>
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button>
+                    </td>
+                  </tr>
+                  <tr class="hover:bg-slate-50/60">
+                    <td class="px-4 py-2.5 font-medium">ICD_Hydraulics_Bus.docx</td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">interface</span></td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Project</span></td>
+                    <td class="px-4 py-2.5 tabular">86</td>
+                    <td class="px-4 py-2.5 text-slate-500">Apr 24</td>
+                    <td class="px-4 py-2.5 text-right space-x-1">
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Download</button>
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button>
+                    </td>
+                  </tr>
+                  <tr class="hover:bg-slate-50/60">
+                    <td class="px-4 py-2.5 font-medium">Safety_Requirements_DAL-B.pdf</td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">specification</span></td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">Project</span></td>
+                    <td class="px-4 py-2.5 tabular">44</td>
+                    <td class="px-4 py-2.5 text-slate-500">Apr 25</td>
+                    <td class="px-4 py-2.5 text-right space-x-1">
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Download</button>
+                      <button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Plans card -->
+          <div class="px-8 pb-8">
+            <div class="rounded-lg border border-slate-200">
+              <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+                <div class="text-sm font-semibold">Plans</div>
+                <button class="text-xs px-2.5 py-1 rounded-md bg-slate-900 text-white">Generate plan</button>
+              </div>
+              <table class="w-full text-sm">
+                <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-slate-50/60">
+                  <tr>
+                    <th class="text-left font-medium px-4 py-2.5">Title</th>
+                    <th class="text-left font-medium px-4 py-2.5">Detail</th>
+                    <th class="text-left font-medium px-4 py-2.5">Test cases</th>
+                    <th class="text-left font-medium px-4 py-2.5">Generated</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-200">
+                  <tr class="hover:bg-slate-50/60">
+                    <td class="px-4 py-2.5 font-medium">System Test Plan v1.0</td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">detailed</span></td>
+                    <td class="px-4 py-2.5 tabular">23</td>
+                    <td class="px-4 py-2.5 text-slate-500">Apr 28 · 14:22</td>
+                    <td class="px-4 py-2.5 text-right">
+                      <a class="text-xs underline">Open</a>
+                    </td>
+                  </tr>
+                  <tr class="hover:bg-slate-50/60">
+                    <td class="px-4 py-2.5 font-medium">Hydraulics ICD smoke tests</td>
+                    <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">summary</span></td>
+                    <td class="px-4 py-2.5 tabular">8</td>
+                    <td class="px-4 py-2.5 text-slate-500">Apr 26 · 09:11</td>
+                    <td class="px-4 py-2.5 text-right">
+                      <a class="text-xs underline">Open</a>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FRAME 02 — Plan Generation Workspace (interactive mode)
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">02 / PLAN GENERATION WORKSPACE — INTERACTIVE MODE</span>
+      <span class="text-slate-300 text-sm">7-agent pipeline pauses at three checkpoints; engineers accept or send free-text feedback before the run continues.</span>
+    </div>
+    <div class="frame">
+      <div class="flex" style="height: 920px;">
+        <!-- Same sidebar -->
+        <aside class="w-56 border-r border-slate-200 bg-slate-50/60 flex flex-col">
+          <div class="p-4 border-b border-slate-200">
+            <div class="flex items-center gap-2">
+              <div class="w-7 h-7 rounded-md bg-slate-900 grid place-items-center">
+                <svg class="w-4 h-4 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 3l6 0M12 3v6m-9 5l9-2 9 2-9 9-9-9z"/></svg>
+              </div>
+              <div>
+                <div class="text-[13px] font-semibold leading-tight">Test Plan Generator</div>
+              </div>
+            </div>
+          </div>
+          <nav class="p-2 space-y-0.5 flex-1 text-sm">
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md bg-slate-900 text-white">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg>
+              Projects
+            </a>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-slate-700">Knowledge base</a>
+            <a class="flex items-center gap-2.5 px-2.5 py-1.5 rounded-md text-slate-700">Traceability</a>
+          </nav>
+        </aside>
+
+        <div class="flex-1 overflow-y-auto scrollbar-thin">
+          <!-- Header -->
+          <div class="px-8 py-6 border-b border-slate-200">
+            <div class="flex items-start justify-between">
+              <div>
+                <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <span>Projects</span>
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  <span>Aero-Hyd Pump Controller v3</span>
+                  <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                  <span>Plan generation workspace</span>
+                </div>
+                <h1 class="text-2xl font-semibold tracking-tight">Plan generation workspace</h1>
+                <p class="text-sm text-slate-500 mt-1">Interactive mode — review each agent's output and steer the run.</p>
+                <p class="text-xs mono text-slate-400 mt-1">Job: job_a4c80fe2d1 · Session: sess_e90af18b3c</p>
+              </div>
+              <div class="flex gap-2">
+                <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Abort</button>
+                <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Back to project</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Agent progress -->
+          <div class="px-8 py-5 border-b border-slate-200">
+            <div class="rounded-lg border border-slate-200 p-4 bg-slate-50/30">
+              <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center gap-2">
+                  <span class="inline-block w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                  <span class="text-sm font-medium">Generating plan…</span>
+                </div>
+                <span class="text-xs text-slate-500 mono tabular">2m 14s</span>
+              </div>
+              <div class="space-y-1.5">
+                <!-- analyst — done -->
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="8" class="opacity-20"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <div class="flex-1 flex items-center gap-2">
+                    <span class="text-sm font-medium">Document Analyst</span>
+                    <span class="text-xs text-slate-500">12s</span>
+                  </div>
+                </div>
+                <!-- extractor — done -->
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 16 16" fill="currentColor"><circle cx="8" cy="8" r="8" class="opacity-20"/><path d="M5 8l2 2 4-4" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <div class="flex-1 flex items-center gap-2">
+                    <span class="text-sm font-medium">Requirement Extractor</span>
+                    <span class="text-xs text-slate-500">28s · accepted after 1 reprompt</span>
+                  </div>
+                </div>
+                <!-- architect — running, paused -->
+                <div class="flex items-center gap-3">
+                  <svg class="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2"/><path d="M8 4v4l2 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+                  <div class="flex-1 flex items-center gap-2">
+                    <span class="text-sm font-medium">Test Architect</span>
+                    <span class="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-900">Awaiting review</span>
+                  </div>
+                </div>
+                <!-- generator — pending -->
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>
+                  <div class="flex-1 flex items-center gap-2">
+                    <span class="text-sm text-slate-500">Test Generator</span>
+                  </div>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>
+                  <span class="text-sm text-slate-500">Traceability Agent</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>
+                  <span class="text-sm text-slate-500">Reviewer</span>
+                </div>
+                <div class="flex items-center gap-3">
+                  <div class="w-4 h-4 rounded-full border-2 border-slate-300 shrink-0"></div>
+                  <span class="text-sm text-slate-500">Planner</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Checkpoint card -->
+          <div class="px-8 py-6">
+            <div class="rounded-lg border border-amber-300 bg-amber-50/30">
+              <div class="flex items-start justify-between px-5 py-4 border-b border-amber-200">
+                <div>
+                  <div class="text-base font-semibold">Checkpoint: Test plan strategy</div>
+                  <p class="text-xs text-slate-600 mt-1 max-w-2xl">
+                    The architect agent has drafted the plan's strategy, scope, and entry/exit criteria. Approve to continue
+                    to test case generation, or reprompt for changes.
+                  </p>
+                </div>
+                <span class="text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">Awaiting your review</span>
+              </div>
+
+              <div class="px-5 py-4 space-y-4">
+                <!-- Output preview -->
+                <div class="rounded border border-slate-200 bg-white p-4 max-h-72 overflow-y-auto scrollbar-thin space-y-3 text-sm">
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Title</div>
+                    <div class="font-medium">Aero-Hyd Pump Controller — System Test Plan v1.0</div>
+                  </div>
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Objectives</div>
+                    <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                      <li>Verify the ECU meets all DAL-B safety requirements under nominal and fault conditions.</li>
+                      <li>Demonstrate full coverage of the SRS v3 normative statements.</li>
+                      <li>Produce DO-178C objective evidence packages for stage-of-involvement audit.</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Scope</div>
+                    <p class="text-slate-700">System-level qualification of the redesigned ECU integrated with the
+                      reference hydraulic test bench. Software, hardware, and the ICD interface to the platform's CAN-FD bus.</p>
+                  </div>
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Out of scope</div>
+                    <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                      <li>Component-level certification of the off-the-shelf solenoid valves.</li>
+                      <li>Environmental qualification (covered by the DO-160 campaign).</li>
+                    </ul>
+                  </div>
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Strategy</div>
+                    <p class="text-slate-700">Two-tier strategy: requirement-based functional verification on the bench,
+                      followed by fault-injection robustness testing on the HIL rig with synthetic ICD traffic.</p>
+                  </div>
+                  <div>
+                    <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Entry criteria</div>
+                    <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                      <li>Build under test passes the developer's smoke-test suite (Build #421+).</li>
+                      <li>Hydraulic test bench calibration certificate within the last 6 months.</li>
+                    </ul>
+                  </div>
+                </div>
+
+                <!-- Previous feedback -->
+                <div class="rounded border border-slate-200 p-3 text-xs bg-white">
+                  <div class="mono uppercase tracking-wider text-slate-500 mb-1">Feedback you sent earlier on the extractor (1)</div>
+                  <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                    <li>"Drop the security requirements — they are out of scope this release."</li>
+                  </ul>
+                </div>
+
+                <!-- Reprompt textarea (open state) -->
+                <div class="space-y-2">
+                  <label class="text-sm font-medium">Tell the agent what to change</label>
+                  <textarea class="w-full rounded-md border border-slate-300 px-3 py-2 text-sm font-normal" rows="3"
+                            placeholder="e.g. Use IEC 61508 SIL-2 wording, focus the entry criteria on bench calibration, drop the regression suite…">Reword the entry criteria to reference IEC 61508 SIL-2 explicitly. Add an exit criterion that all DAL-B safety tests pass with zero open defects.</textarea>
+                  <div class="flex items-center justify-between">
+                    <div class="flex gap-2">
+                      <button class="px-3 py-1.5 text-sm rounded-md bg-slate-900 text-white hover:bg-slate-800">Send feedback</button>
+                      <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Cancel</button>
+                    </div>
+                    <button class="px-3 py-1.5 text-sm rounded-md border border-emerald-300 bg-emerald-50 text-emerald-900 hover:bg-emerald-100">
+                      <span class="inline-flex items-center gap-1.5">
+                        <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>
+                        Accept and continue
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FRAME 03 — Plan Detail (Inflectra-style)
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">03 / PLAN DETAIL</span>
+      <span class="text-slate-300 text-sm">Generated test plan in the Inflectra/IEEE-829 layout — printable, exportable, traceable.</span>
+    </div>
+    <div class="frame">
+      <div style="height: 920px;" class="overflow-y-auto scrollbar-thin">
+        <!-- Header bar -->
+        <div class="px-8 py-6 border-b border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                <span>Aero-Hyd Pump Controller v3</span>
+                <svg class="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+                <span>Plans</span>
+              </div>
+              <h1 class="text-2xl font-semibold tracking-tight">Aero-Hyd Pump Controller — System Test Plan</h1>
+              <div class="flex items-center gap-3 mt-1 text-sm text-slate-500">
+                <span><span class="font-medium tabular text-slate-900">23</span> test cases</span>
+                <span class="mono">v1.0</span>
+                <span>by AI-Generated</span>
+                <span>· Apr 28, 2026</span>
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <div class="inline-flex border border-slate-300 rounded-md overflow-hidden">
+                <button class="px-3 py-1.5 text-sm bg-slate-100">Detailed</button>
+                <button class="px-3 py-1.5 text-sm">Summary</button>
+              </div>
+              <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Export JSON</button>
+              <button class="px-3 py-1.5 text-sm rounded-md bg-slate-900 text-white">Export PDF</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Strategy + coverage row -->
+        <div class="px-8 py-6 grid grid-cols-3 gap-4">
+          <div class="col-span-2 rounded-lg border border-slate-200">
+            <div class="px-4 py-3 border-b border-slate-200 text-sm font-semibold">Strategy</div>
+            <div class="px-4 py-4 space-y-3 text-sm">
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Scope</div>
+                <p class="text-slate-700">System-level qualification of the redesigned ECU integrated with the reference hydraulic test bench, including the ICD interface to the platform's CAN-FD bus.</p>
+              </div>
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Strategy</div>
+                <p class="text-slate-700">Two-tier strategy: requirement-based functional verification on the bench, followed by fault-injection robustness testing on the HIL rig.</p>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Entry criteria</div>
+                  <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                    <li>Build under test passes the developer smoke-test suite (≥ #421).</li>
+                    <li>Hydraulic test bench calibration ≤ 6 months old.</li>
+                    <li>IEC 61508 SIL-2 prerequisite checks complete.</li>
+                  </ul>
+                </div>
+                <div>
+                  <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Exit criteria</div>
+                  <ul class="list-disc ml-5 space-y-0.5 text-slate-700">
+                    <li>All DAL-B safety tests pass with zero open defects.</li>
+                    <li>100% requirement coverage demonstrated.</li>
+                    <li>Stage-of-involvement audit package signed off.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="rounded-lg border border-slate-200">
+            <div class="px-4 py-3 border-b border-slate-200 text-sm font-semibold">Coverage</div>
+            <div class="px-4 py-4 space-y-3">
+              <!-- mini donut -->
+              <div class="flex items-center gap-3">
+                <svg class="w-16 h-16" viewBox="0 0 36 36">
+                  <path fill="none" stroke="#e2e8f0" stroke-width="3.5" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                  <path fill="none" stroke="#10b981" stroke-width="3.5" stroke-linecap="round" stroke-dasharray="100,100" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"/>
+                </svg>
+                <div>
+                  <div class="text-3xl font-semibold tabular">100%</div>
+                  <div class="text-xs text-slate-500">23 / 23 requirements</div>
+                </div>
+              </div>
+              <ul class="space-y-1 text-sm max-h-44 overflow-y-auto scrollbar-thin">
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-001</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">2 TC</span></li>
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-002</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">1 TC</span></li>
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-003</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">3 TC</span></li>
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-004</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">1 TC</span></li>
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-005</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">2 TC</span></li>
+                <li class="flex items-center justify-between"><span class="mono text-xs">REQ-006</span><span class="text-xs px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">1 TC</span></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <!-- Test cases table -->
+        <div class="px-8 pb-8">
+          <div class="rounded-lg border border-slate-200">
+            <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
+              <div class="text-sm font-semibold">Test cases</div>
+              <div class="flex items-center gap-2">
+                <input type="text" placeholder="Filter title…" class="text-xs px-2.5 py-1.5 rounded border border-slate-300 w-48"/>
+                <select class="text-xs px-2 py-1.5 rounded border border-slate-300">
+                  <option>All risk levels</option>
+                </select>
+              </div>
+            </div>
+            <table class="w-full text-sm">
+              <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-slate-50/60">
+                <tr>
+                  <th class="text-left font-medium px-4 py-2.5">ID</th>
+                  <th class="text-left font-medium px-4 py-2.5">Title</th>
+                  <th class="text-left font-medium px-4 py-2.5">Risk</th>
+                  <th class="text-left font-medium px-4 py-2.5">Requirements</th>
+                  <th class="text-left font-medium px-4 py-2.5">Testing types</th>
+                  <th class="text-left font-medium px-4 py-2.5">Duration</th>
+                  <th class="text-left font-medium px-4 py-2.5">Assignee</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-001</td>
+                  <td class="px-4 py-2.5 font-medium">Nominal pressure regulation under load</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Critical</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-001, REQ-003</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Functional</span> <span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">System</span></td>
+                  <td class="px-4 py-2.5 tabular">45 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. A</td>
+                </tr>
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-002</td>
+                  <td class="px-4 py-2.5 font-medium">Solenoid drive fault — pull-up failure</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">High</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-005</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Fault injection</span></td>
+                  <td class="px-4 py-2.5 tabular">30 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. B</td>
+                </tr>
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-003</td>
+                  <td class="px-4 py-2.5 font-medium">CAN-FD bus framing under nominal load</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-medium">Medium</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-007, REQ-008</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Integration</span></td>
+                  <td class="px-4 py-2.5 tabular">25 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. A</td>
+                </tr>
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-004</td>
+                  <td class="px-4 py-2.5 font-medium">Watchdog reset behavior on stuck task</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">High</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-011</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Fault injection</span> <span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Robustness</span></td>
+                  <td class="px-4 py-2.5 tabular">40 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. C</td>
+                </tr>
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-005</td>
+                  <td class="px-4 py-2.5 font-medium">Power-on built-in test reports green</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 font-medium">Low</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-002</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">BIT</span></td>
+                  <td class="px-4 py-2.5 tabular">10 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. A</td>
+                </tr>
+                <tr class="hover:bg-slate-50/60">
+                  <td class="px-4 py-2.5 mono text-xs font-medium">TC-006</td>
+                  <td class="px-4 py-2.5 font-medium">Over-pressure protection trips at 285 bar</td>
+                  <td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-800 font-medium">Critical</span></td>
+                  <td class="px-4 py-2.5 mono text-xs text-slate-600">REQ-012, REQ-013</td>
+                  <td class="px-4 py-2.5 text-xs"><span class="px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">Safety</span></td>
+                  <td class="px-4 py-2.5 tabular">60 min</td>
+                  <td class="px-4 py-2.5 text-slate-500">Test Eng. C</td>
+                </tr>
+                <tr class="bg-slate-50/40">
+                  <td class="px-4 py-2 mono text-xs italic text-slate-400" colspan="7">… 17 more test cases. Click any row to expand its steps, acceptance criteria, deliverables and KPIs.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FRAME 04 — Knowledge Base
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">04 / GENERAL KNOWLEDGE BASE</span>
+      <span class="text-slate-300 text-sm">Cross-project corpus the agents lean on for every plan: standards, glossaries, regulatory texts.</span>
+    </div>
+    <div class="frame">
+      <div style="height: 720px;" class="overflow-y-auto scrollbar-thin">
+        <div class="px-8 py-6 border-b border-slate-200">
+          <div class="flex items-start justify-between">
+            <div>
+              <h1 class="text-2xl font-semibold tracking-tight">General Knowledge Base</h1>
+              <p class="text-sm text-slate-500 mt-1 max-w-3xl">Cross-project documents the agents can pull from when generating any plan
+                — standards, glossaries, regulatory texts, organisational guidelines.</p>
+            </div>
+            <button class="px-3 py-1.5 text-sm rounded-md bg-slate-900 text-white">Upload to KB</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-4 px-8 py-6">
+          <div class="rounded-lg border border-slate-200 p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Documents</div>
+            <div class="text-3xl font-semibold tabular">12</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Indexed chunks</div>
+            <div class="text-3xl font-semibold tabular">847</div>
+          </div>
+          <div class="rounded-lg border border-slate-200 p-4">
+            <div class="text-xs uppercase tracking-wider text-slate-500 mb-1">Scope</div>
+            <span class="inline-block text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">General KB</span>
+            <p class="text-[11px] text-slate-500 mt-2">Available to all projects</p>
+          </div>
+        </div>
+
+        <div class="px-8 pb-8">
+          <div class="rounded-lg border border-slate-200">
+            <div class="px-4 py-3 border-b border-slate-200 text-sm font-semibold">Documents in the knowledge base</div>
+            <table class="w-full text-sm">
+              <thead class="text-[11px] uppercase tracking-wider text-slate-500 bg-slate-50/60">
+                <tr>
+                  <th class="text-left font-medium px-4 py-2.5">Title</th>
+                  <th class="text-left font-medium px-4 py-2.5">Kind</th>
+                  <th class="text-left font-medium px-4 py-2.5">Chunks</th>
+                  <th class="text-left font-medium px-4 py-2.5">Ingested</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200">
+                <tr class="hover:bg-slate-50/60"><td class="px-4 py-2.5 font-medium">DO-178C — Software Considerations in Airborne Systems.pdf</td><td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">standard</span></td><td class="px-4 py-2.5 tabular">214</td><td class="px-4 py-2.5 text-slate-500">Mar 11</td><td class="px-4 py-2.5 text-right"><button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-4 py-2.5 font-medium">IEC 61508 SIL Definitions Reference.pdf</td><td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">standard</span></td><td class="px-4 py-2.5 tabular">89</td><td class="px-4 py-2.5 text-slate-500">Mar 11</td><td class="px-4 py-2.5 text-right"><button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-4 py-2.5 font-medium">Internal QA Glossary v4.docx</td><td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">glossary</span></td><td class="px-4 py-2.5 tabular">42</td><td class="px-4 py-2.5 text-slate-500">Mar 14</td><td class="px-4 py-2.5 text-right"><button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-4 py-2.5 font-medium">ISO 26262 Functional Safety — Road Vehicles.pdf</td><td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">standard</span></td><td class="px-4 py-2.5 tabular">186</td><td class="px-4 py-2.5 text-slate-500">Mar 19</td><td class="px-4 py-2.5 text-right"><button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button></td></tr>
+                <tr class="hover:bg-slate-50/60"><td class="px-4 py-2.5 font-medium">Hydraulics Test Bench — Operating Manual.pdf</td><td class="px-4 py-2.5"><span class="text-xs px-2 py-0.5 rounded-full bg-sky-50 text-sky-800 border border-sky-100">manual</span></td><td class="px-4 py-2.5 tabular">68</td><td class="px-4 py-2.5 text-slate-500">Apr 02</td><td class="px-4 py-2.5 text-right"><button class="text-xs px-2 py-1 rounded border border-slate-300 hover:bg-slate-50">Delete</button></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FRAME 05 — Traceability Graph
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">05 / TRACEABILITY GRAPH</span>
+      <span class="text-slate-300 text-sm">Lineage from spec section to extracted requirement to test case — auditors can click any node and walk its history.</span>
+    </div>
+    <div class="frame">
+      <div style="height: 760px;" class="overflow-y-auto scrollbar-thin">
+        <div class="px-8 py-6 border-b border-slate-200 flex items-start justify-between">
+          <div>
+            <h1 class="text-2xl font-semibold tracking-tight">Traceability</h1>
+            <p class="text-sm text-slate-500 mt-1">Explore upstream ancestors and downstream test cases for any artefact in the cross-document graph.</p>
+          </div>
+          <button class="px-3 py-1.5 text-sm rounded-md border border-slate-300 hover:bg-slate-50">Export PNG</button>
+        </div>
+
+        <div class="px-8 py-4 border-b border-slate-200">
+          <div class="rounded-lg border border-slate-200 p-3 flex items-end gap-2">
+            <div class="flex-1">
+              <label class="text-[10px] mono uppercase tracking-wider text-slate-500">Artefact ID</label>
+              <input type="text" value="REQ-006" class="w-full mt-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-sm mono"/>
+            </div>
+            <div class="w-24">
+              <label class="text-[10px] mono uppercase tracking-wider text-slate-500">Depth</label>
+              <input type="number" value="3" class="w-full mt-1 px-2.5 py-1.5 rounded-md border border-slate-300 text-sm tabular"/>
+            </div>
+            <button class="px-3 py-1.5 text-sm rounded-md bg-slate-900 text-white">Load</button>
+          </div>
+        </div>
+
+        <div class="px-8 py-6 grid grid-cols-4 gap-4">
+          <!-- Graph canvas -->
+          <div class="col-span-3 rounded-lg border border-slate-200 bg-slate-50/40" style="height: 480px;">
+            <svg viewBox="0 0 760 480" class="w-full h-full">
+              <!-- Edges -->
+              <g stroke="#94a3b8" stroke-width="1.5" fill="none">
+                <path d="M380 80 C 380 130, 220 130, 220 180" />
+                <path d="M380 80 C 380 130, 540 130, 540 180" />
+                <path d="M220 220 C 220 270, 140 270, 140 320" />
+                <path d="M220 220 C 220 270, 300 270, 300 320" />
+                <path d="M540 220 C 540 270, 460 270, 460 320" />
+                <path d="M540 220 C 540 270, 620 270, 620 320" />
+                <path d="M140 360 L 140 400" />
+                <path d="M300 360 L 300 400" />
+                <path d="M460 360 L 460 400" />
+                <path d="M620 360 L 620 400" />
+              </g>
+              <!-- Edge labels -->
+              <g font-family="JetBrains Mono" font-size="9" fill="#64748b">
+                <text x="288" y="135">derives_from</text>
+                <text x="450" y="135">derives_from</text>
+                <text x="148" y="275">covers</text>
+                <text x="320" y="275">covers</text>
+                <text x="392" y="275">covers</text>
+                <text x="555" y="275">covers</text>
+              </g>
+
+              <!-- Root: doc -->
+              <g transform="translate(330, 50)">
+                <rect width="100" height="32" rx="6" fill="#0f172a"/>
+                <text x="50" y="20" text-anchor="middle" font-family="JetBrains Mono" font-size="11" fill="white" font-weight="500">SRS § 4.2.1</text>
+              </g>
+
+              <!-- Reqs -->
+              <g transform="translate(170, 180)">
+                <rect width="100" height="40" rx="6" fill="#1d4ed8"/>
+                <text x="50" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">REQ-005</text>
+                <text x="50" y="32" text-anchor="middle" font-family="Inter" font-size="10" fill="#bfdbfe">solenoid drive</text>
+              </g>
+              <g transform="translate(490, 180)">
+                <rect width="100" height="40" rx="6" fill="#1d4ed8" stroke="#facc15" stroke-width="2"/>
+                <text x="50" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">REQ-006</text>
+                <text x="50" y="32" text-anchor="middle" font-family="Inter" font-size="10" fill="#fef9c3">over-pressure</text>
+              </g>
+
+              <!-- Test cases -->
+              <g transform="translate(95, 320)">
+                <rect width="90" height="40" rx="6" fill="#dc2626"/>
+                <text x="45" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">TC-002</text>
+                <text x="45" y="32" text-anchor="middle" font-family="Inter" font-size="9" fill="#fecaca">High</text>
+              </g>
+              <g transform="translate(255, 320)">
+                <rect width="90" height="40" rx="6" fill="#0284c7"/>
+                <text x="45" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">TC-008</text>
+                <text x="45" y="32" text-anchor="middle" font-family="Inter" font-size="9" fill="#bae6fd">Low</text>
+              </g>
+              <g transform="translate(415, 320)">
+                <rect width="90" height="40" rx="6" fill="#dc2626"/>
+                <text x="45" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">TC-006</text>
+                <text x="45" y="32" text-anchor="middle" font-family="Inter" font-size="9" fill="#fecaca">Critical</text>
+              </g>
+              <g transform="translate(575, 320)">
+                <rect width="90" height="40" rx="6" fill="#dc2626"/>
+                <text x="45" y="17" text-anchor="middle" font-family="JetBrains Mono" font-size="10" fill="white">TC-019</text>
+                <text x="45" y="32" text-anchor="middle" font-family="Inter" font-size="9" fill="#fecaca">High</text>
+              </g>
+
+              <!-- Step children -->
+              <g transform="translate(110, 400)">
+                <rect width="60" height="22" rx="4" fill="#94a3b8"/>
+                <text x="30" y="14" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="white">step×4</text>
+              </g>
+              <g transform="translate(270, 400)">
+                <rect width="60" height="22" rx="4" fill="#94a3b8"/>
+                <text x="30" y="14" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="white">step×3</text>
+              </g>
+              <g transform="translate(430, 400)">
+                <rect width="60" height="22" rx="4" fill="#94a3b8"/>
+                <text x="30" y="14" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="white">step×6</text>
+              </g>
+              <g transform="translate(590, 400)">
+                <rect width="60" height="22" rx="4" fill="#94a3b8"/>
+                <text x="30" y="14" text-anchor="middle" font-family="JetBrains Mono" font-size="9" fill="white">step×5</text>
+              </g>
+            </svg>
+          </div>
+
+          <!-- Selection panel -->
+          <div class="rounded-lg border border-slate-200">
+            <div class="px-4 py-3 border-b border-slate-200 text-sm font-semibold">Selection</div>
+            <div class="px-4 py-4 space-y-3 text-sm">
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">ID</div>
+                <div class="mono">REQ-006</div>
+              </div>
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Type</div>
+                <div>requirement</div>
+              </div>
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Title</div>
+                <div>Over-pressure protection</div>
+              </div>
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Source</div>
+                <div class="mono text-xs text-slate-600">SRS_PumpController_v3.pdf<br/>§ 4.2.1, p. 38</div>
+              </div>
+              <div>
+                <div class="text-[10px] mono uppercase tracking-wider text-slate-500">Covered by</div>
+                <div class="flex flex-wrap gap-1 mt-1">
+                  <span class="mono text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">TC-006</span>
+                  <span class="mono text-xs px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800">TC-019</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================
+       FRAME 06 — Copilot
+  ============================================================ -->
+  <section>
+    <div class="flex items-baseline gap-3 mb-3">
+      <span class="mono text-xs frame-label">06 / COPILOT</span>
+      <span class="text-slate-300 text-sm">Per-project chat assistant with memory and slash commands. Confirms destructive actions before they run.</span>
+    </div>
+    <div class="frame">
+      <div class="flex" style="height: 760px;">
+        <!-- Sessions sidebar -->
+        <aside class="w-64 border-r border-slate-200 bg-slate-50/60 flex flex-col">
+          <div class="p-3 border-b border-slate-200 flex items-center justify-between">
+            <span class="text-sm font-semibold">Conversations</span>
+            <button class="text-xs px-2 py-1 rounded bg-slate-900 text-white">New</button>
+          </div>
+          <ul class="divide-y divide-slate-200 flex-1 overflow-y-auto scrollbar-thin">
+            <li class="p-3 bg-white">
+              <div class="text-sm font-medium truncate">Why was REQ-014 dropped?</div>
+              <div class="text-[10px] mono text-slate-500 truncate">sess_e90af18b3c</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Today, 14:22</div>
+            </li>
+            <li class="p-3 hover:bg-white">
+              <div class="text-sm truncate">/coverage on the system test plan</div>
+              <div class="text-[10px] mono text-slate-500 truncate">sess_b3a1c98742</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Yesterday</div>
+            </li>
+            <li class="p-3 hover:bg-white">
+              <div class="text-sm truncate">Generate a smoke-test plan for the ICD</div>
+              <div class="text-[10px] mono text-slate-500 truncate">sess_47f0a2c891</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Apr 26</div>
+            </li>
+            <li class="p-3 hover:bg-white">
+              <div class="text-sm truncate">/source REQ-005</div>
+              <div class="text-[10px] mono text-slate-500 truncate">sess_d8c6e02a47</div>
+              <div class="text-[10px] text-slate-500 mt-0.5">Apr 25</div>
+            </li>
+          </ul>
+        </aside>
+
+        <!-- Conversation -->
+        <div class="flex-1 flex flex-col">
+          <div class="px-6 py-4 border-b border-slate-200 flex items-start justify-between">
+            <div>
+              <h2 class="text-lg font-semibold">Why was REQ-014 dropped?</h2>
+              <div class="text-[11px] mono text-slate-500 mt-0.5">sess_e90af18b3c · Project: proj_62d9e9b878</div>
+            </div>
+            <button class="text-xs px-2.5 py-1 rounded border border-slate-300 hover:bg-slate-50">New chat</button>
+          </div>
+
+          <!-- messages -->
+          <div class="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-4">
+            <div class="flex justify-end">
+              <div class="max-w-xl rounded-lg px-3 py-2 text-sm bg-slate-900 text-white">
+                Why is REQ-014 not covered by any test case? Show the source.
+              </div>
+            </div>
+            <div class="flex justify-start">
+              <div class="max-w-xl rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-900 space-y-2">
+                <p>REQ-014 ("System shall log all DAL-B safety events to non-volatile memory") is not currently covered. The architect agent classified it under the <span class="mono">data_logging</span> sub-system, which is out of scope for this campaign per your earlier feedback to the extractor on Apr 28.</p>
+                <p>Two options:</p>
+                <ul class="list-disc ml-5">
+                  <li>Add a smoke test for the logging interface (suggested: <span class="mono">TC-024</span> covering REQ-014, ~20 min).</li>
+                  <li>Flag REQ-014 as deferred in the plan's <span class="mono">out_of_scope</span> section.</li>
+                </ul>
+                <div class="pt-1 flex flex-wrap gap-1.5">
+                  <span class="text-[11px] px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-100 cursor-pointer">p.41</span>
+                  <span class="text-[11px] px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-100 cursor-pointer">SRS § 5.1.3</span>
+                  <span class="text-[11px] px-2 py-0.5 rounded bg-sky-50 text-sky-800 border border-sky-100 cursor-pointer">REQ-014</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex justify-end">
+              <div class="max-w-xl rounded-lg px-3 py-2 text-sm bg-slate-900 text-white">
+                /add-test-case for REQ-014
+              </div>
+            </div>
+            <div class="flex justify-start">
+              <div class="max-w-xl rounded-lg px-3 py-2 text-sm bg-slate-100 text-slate-900 space-y-2">
+                <p>I drafted TC-024 to cover REQ-014. Confirm to add it to the plan.</p>
+                <div class="mt-2 p-2.5 border border-amber-300 rounded-md bg-amber-50 text-amber-900 text-xs">
+                  <div class="font-medium mb-2">Pending action: add_test_case TC-024 → System Test Plan v1.0</div>
+                  <div class="flex gap-2">
+                    <button class="px-2.5 py-1 text-xs rounded bg-slate-900 text-white">Confirm</button>
+                    <button class="px-2.5 py-1 text-xs rounded border border-slate-300 bg-white">Discard</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- input -->
+          <div class="px-6 py-4 border-t border-slate-200">
+            <div class="text-[11px] text-slate-500 mb-1.5">Available: /plan /coverage /source /add-test-case</div>
+            <div class="flex gap-2">
+              <input class="flex-1 h-10 rounded-md border border-slate-300 px-3 text-sm" placeholder="Ask a question or run a /command…"/>
+              <button class="px-4 h-10 rounded-md bg-slate-900 text-white text-sm font-medium">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="pt-6 pb-2 text-center">
+    <div class="text-slate-500 text-xs">End of mockup · 6 frames · AI Test Plan Generator · 2026</div>
+  </footer>
+
+</main>
+
+</body>
+</html>

@@ -1,3 +1,10 @@
+from ai_testplan_generator.models.defects import (
+    CATALOG,
+    DefectCatalogEntry,
+    DefectInstance,
+    DefectReport,
+    DefectType,
+)
 from ai_testplan_generator.models.documents import (
     Chunk,
     ChunkKind,
@@ -18,8 +25,13 @@ from ai_testplan_generator.models.traceability import TraceLink
 
 __all__ = [
     "AcceptanceCriterion",
+    "CATALOG",
     "Chunk",
     "ChunkKind",
+    "DefectCatalogEntry",
+    "DefectInstance",
+    "DefectReport",
+    "DefectType",
     "DetailLevel",
     "Document",
     "DocumentKind",

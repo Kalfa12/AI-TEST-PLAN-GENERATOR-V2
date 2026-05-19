@@ -55,6 +55,9 @@ _ingest_chunks_total: Counter | None = None
 _job_queue_depth: Gauge | None = None
 _job_duration_seconds: Histogram | None = None
 
+# Quality / defects
+_defects_total: Counter | None = None
+
 _LATENCY_BUCKETS = (0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0)
 
 
@@ -70,6 +73,7 @@ def init_metrics() -> None:
     global _agent_runs_total, _agent_duration_seconds
     global _ingest_docs_total, _ingest_chunks_total
     global _job_queue_depth, _job_duration_seconds
+    global _defects_total
 
     reg = CollectorRegistry(auto_describe=False)
 
@@ -142,6 +146,12 @@ def init_metrics() -> None:
         buckets=_LATENCY_BUCKETS,
         registry=reg,
     )
+    _defects_total = Counter(
+        "aitpg_defects_total",
+        "Total defects identified by the quality layer",
+        ["defect_type", "severity", "detector"],
+        registry=reg,
+    )
 
     _registry = reg
 
@@ -206,3 +216,7 @@ def job_queue_depth() -> Gauge:
 
 def job_duration_seconds() -> Histogram:
     return _require(_job_duration_seconds, "aitpg_job_duration_seconds")
+
+
+def defects_total() -> Counter:
+    return _require(_defects_total, "aitpg_defects_total")

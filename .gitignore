@@ -19,12 +19,37 @@ venv/
 .DS_Store
 Thumbs.db
 
-# Environment
+# Environment / secrets
 .env
+.env.local
 
 # Data (created at runtime)
 data/
 
-# Test cache
+# Tooling caches
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+
+# Internal docs — kept locally, not for the public repo
+DEVELOPMENT_PLAN.md
+INTEGRATION.md
+MODIFICATIONS_LOG.md
+TASKS.md
+presentation.md
+presentation.pdf
+STATUS.html
+architecture_diagrams.html
+journal/
+
+# Third-party templates (license-restricted)
+Inflectra-Test-Plan-Template-Excel.xlsx
+Inflectra-Test-Plan-Template-PDF.pdf
+
+# Sample input
+test_req_1.docx
+
+# Frontend build artefacts
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo

@@ -10,6 +10,8 @@ import { usePlan, usePlanCoverage } from "./hooks";
 import { exportPlanJson } from "./api";
 import { exportPlanToPdf } from "./pdf-export";
 import { useToast } from "@/components/ui/toast";
+import { usePlanDefects } from "@/features/quality/hooks";
+import { DefectsPanel } from "@/features/quality/defects-panel";
 import type { TestCaseSummary } from "@/lib/api/types";
 
 export function PlanDetailPage() {
@@ -20,6 +22,7 @@ export function PlanDetailPage() {
   const summary = usePlan(projectId, planId, "summary");
   const full = usePlan(projectId, planId, "full");
   const coverage = usePlanCoverage(projectId, planId);
+  const defects = usePlanDefects(projectId, planId);
   const toast = useToast();
 
   const [detail, setDetail] = useState<"summary" | "full">("full");
@@ -179,6 +182,9 @@ export function PlanDetailPage() {
             </CardBody>
           </Card>
         </div>
+
+        {/* Quality / defect report */}
+        {defects.data && <DefectsPanel report={defects.data} />}
 
         {/* Test cases */}
         <Card>

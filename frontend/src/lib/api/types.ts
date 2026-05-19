@@ -202,3 +202,56 @@ export interface CheckpointResponse {
     [k: string]: unknown;
   };
 }
+
+// --- Defect taxonomy --------------------------------------------------------
+
+export type DefectSeverity = "critical" | "major" | "minor";
+export type DefectTargetKind = "requirement" | "test_case" | "test_plan";
+export type DefectDetector =
+  | "static"
+  | "reviewer"
+  | "requirement_reviewer"
+  | "traceability";
+export type DefectDetectionDifficulty =
+  | "mechanical"
+  | "llm"
+  | "domain_expert";
+
+// String form keeps us forward-compatible with new enum entries.
+export type DefectType = string;
+
+export interface DefectInstance {
+  id: string;
+  defect_type: DefectType;
+  severity: DefectSeverity;
+  target_kind: DefectTargetKind;
+  target_id: string;
+  evidence: string;
+  suggestion: string | null;
+  // detector is internal-only — server populates it for telemetry but the
+  // UI shouldn't surface implementation detail to QA engineers.
+  detector?: DefectDetector;
+}
+
+export interface DefectReport {
+  plan_id: string | null;
+  defects: DefectInstance[];
+  summary: Partial<Record<DefectSeverity, number>>;
+  approved: boolean;
+}
+
+export interface DefectCatalogEntry {
+  id: DefectType;
+  name: string;
+  category: "requirement" | "test_plan";
+  default_severity: DefectSeverity;
+  detection_difficulty: DefectDetectionDifficulty;
+  standard_refs: string[];
+  description: string;
+  example: string | null;
+  corrected_example: string | null;
+}
+
+export interface DefectCatalogResponse {
+  entries: DefectCatalogEntry[];
+}

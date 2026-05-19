@@ -29,6 +29,7 @@ async def run_autonomous(
     event_broker = ctx.get("event_broker")
     plans: dict[str, Any] = ctx.get("plans", {})
     project_plans: dict[str, list[str]] = ctx.get("project_plans", {})
+    defects_index: dict[str, Any] = ctx.get("defects", {})
     job_id: str = ctx.get("job_id", "unknown")
     job_try: int = ctx.get("job_try", 1)
     max_tries: int = ctx.get("max_tries", 4)
@@ -62,6 +63,16 @@ async def run_autonomous(
             plan_key, plan.model_dump_json().encode(), "application/json"
         )
 
+        defect_report = result.state.defect_report
+        if defect_report is not None:
+            defects_key = f"projects/{project_id}/plans/{plan.id}.defects.json"
+            await blob_store.put(
+                defects_key,
+                defect_report.model_dump_json().encode(),
+                "application/json",
+            )
+            defects_index[plan.id] = defect_report
+
         # Update in-process index (meaningful when using FakeJobQueue in tests
         # or when the worker shares the API process's memory).
         plans[plan.id] = plan
@@ -70,6 +81,7 @@ async def run_autonomous(
         out: dict[str, Any] = {
             "plan_id": plan.id,
             "n_test_cases": len(plan.test_cases),
+            "n_defects": len(defect_report.defects) if defect_report else 0,
         }
 
         if event_broker is not None:
@@ -148,6 +160,7 @@ async def run_autonomous_interactive(
     event_broker = ctx.get("event_broker")
     plans: dict[str, Any] = ctx.get("plans", {})
     project_plans: dict[str, list[str]] = ctx.get("project_plans", {})
+    defects_index: dict[str, Any] = ctx.get("defects", {})
     job_id: str = ctx.get("job_id", "unknown")
     jobs_index: dict[str, Any] = ctx.get("jobs_index", {})
 
@@ -185,9 +198,20 @@ async def run_autonomous_interactive(
         plans[plan.id] = plan
         project_plans.setdefault(project_id, []).append(plan.id)
 
+        defect_report = result.get("defect_report")
+        if defect_report is not None:
+            defects_key = f"projects/{project_id}/plans/{plan.id}.defects.json"
+            await blob_store.put(
+                defects_key,
+                defect_report.model_dump_json().encode(),
+                "application/json",
+            )
+            defects_index[plan.id] = defect_report
+
         out: dict[str, Any] = {
             "plan_id": plan.id,
             "n_test_cases": len(plan.test_cases),
+            "n_defects": len(defect_report.defects) if defect_report else 0,
         }
 
         if event_broker is not None:

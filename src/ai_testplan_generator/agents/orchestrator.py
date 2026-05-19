@@ -24,10 +24,12 @@ from ai_testplan_generator.prompts.library import ORCHESTRATOR_SYSTEM
 NextStep = Literal[
     "analyst",
     "extractor",
+    "requirement_reviewer",
     "architect",
     "generator",
     "traceability",
     "reviewer",
+    "defect_aggregator",
     "planner",
     "finish",
 ]
@@ -62,6 +64,12 @@ class OrchestratorAgent(BaseAgent[AutonomousState, OrchestratorDecision]):
                 route_to="extractor", rationale="no requirements extracted yet"
             )
 
+        if inp.requirement_review_report is None:
+            return OrchestratorDecision(
+                route_to="requirement_reviewer",
+                rationale="requirements not yet reviewed for taxonomy defects",
+            )
+
         if inp.plan is None or not inp.plan.scope:
             return OrchestratorDecision(
                 route_to="architect", rationale="no plan shell yet"
@@ -82,13 +90,20 @@ class OrchestratorAgent(BaseAgent[AutonomousState, OrchestratorDecision]):
                 route_to="reviewer", rationale="first review pending"
             )
 
+        if inp.defect_report is None:
+            return OrchestratorDecision(
+                route_to="defect_aggregator",
+                rationale="defect report not yet aggregated",
+            )
+
         # --- LLM-assisted branch: revise or schedule? --------------------
         rr = inp.review_report
         has_critical = any(f.severity == "critical" for f in rr.findings)
         has_major = any(f.severity == "major" for f in rr.findings)
+        defect_critical = inp.defect_report.summary.get("critical", 0) > 0
         budget_left = inp.revision_round < inp.max_revision_rounds
 
-        if (has_critical or has_major) and budget_left:
+        if (has_critical or has_major or defect_critical) and budget_left:
             # Ask the LLM whether it truly justifies a loopback or whether
             # findings are actionable in-place.
             messages = [

@@ -1,5 +1,6 @@
 from ai_testplan_generator.agents.base import AgentContext, BaseAgent
 from ai_testplan_generator.agents.copilot import CopilotAgent, CopilotReply
+from ai_testplan_generator.agents.defect_aggregator import build_defect_report
 from ai_testplan_generator.agents.document_analyst import (
     CorpusSummary,
     DocumentAnalystAgent,
@@ -10,6 +11,7 @@ from ai_testplan_generator.agents.orchestrator import (
 )
 from ai_testplan_generator.agents.planner import PlannerAgent
 from ai_testplan_generator.agents.requirement_extractor import RequirementExtractorAgent
+from ai_testplan_generator.agents.requirement_reviewer import RequirementReviewerAgent
 from ai_testplan_generator.agents.reviewer import ReviewFinding, ReviewReport, ReviewerAgent
 from ai_testplan_generator.agents.state import AgentMode, AutonomousState, InteractiveState
 from ai_testplan_generator.agents.test_architect import TestArchitectAgent
@@ -33,6 +35,7 @@ __all__ = [
     "OrchestratorDecision",
     "PlannerAgent",
     "RequirementExtractorAgent",
+    "RequirementReviewerAgent",
     "ReviewFinding",
     "ReviewReport",
     "ReviewerAgent",
@@ -40,4 +43,5 @@ __all__ = [
     "TestGeneratorAgent",
     "TraceabilityAgent",
     "TraceabilityReport",
+    "build_defect_report",
 ]

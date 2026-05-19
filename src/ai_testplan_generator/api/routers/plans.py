@@ -10,7 +10,7 @@ DELETE /projects/{project_id}/plans/{plan_id}   remove plan
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 import structlog
@@ -31,7 +31,6 @@ from ai_testplan_generator.api.schemas.plans import (
     CoverageMatrixResponse,
     CreatePlanAccepted,
     CreatePlanRequest,
-    JobStatusResponse,
     PlanListItem,
     PlanListResponse,
     ResumeRequest,
@@ -199,23 +198,9 @@ async def delete_plan(
         pass
 
 
-@router.get(
-    "/jobs/{job_id}",
-    response_model=JobStatusResponse,
-    summary="Poll background job status (plan generation, ingest)",
-)
-async def get_job_status(
-    job_id: str,
-    job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
-) -> JobStatusResponse:
-    job = await job_queue.get_status(job_id)
-    return JobStatusResponse(
-        job_id=job.id,
-        status=job.status.value,
-        result=job.result,
-        error=job.error,
-        paused_at=getattr(job, "paused_at", None),
-    )
+# Note: GET /jobs/{job_id} lives in routers/events.py (single canonical
+# implementation). Adding a duplicate here previously caused the test suite
+# and the frontend to disagree on field names (`id` vs `job_id`).
 
 
 @router.get(
@@ -249,15 +234,15 @@ async def get_job_checkpoint(
 
 @router.post(
     "/jobs/{job_id}/resume",
-    response_model=JobStatusResponse,
     summary="Resume a paused interactive run with accept / reprompt / abort",
 )
 async def resume_job(
     job_id: str,
     body: ResumeRequest,
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
-) -> JobStatusResponse:
+) -> Any:
     from ai_testplan_generator.api.errors import ValidationError
+    from ai_testplan_generator.api.routers.events import JobStatusResponse
     from ai_testplan_generator.pipelines.interactive_run import (
         ResumeDirective,
         submit_directive,
@@ -280,10 +265,4 @@ async def resume_job(
             f"Job '{job_id}' is not currently paused at a checkpoint."
         )
 
-    return JobStatusResponse(
-        job_id=job.id,
-        status=job.status.value,
-        result=job.result,
-        error=job.error,
-        paused_at=getattr(job, "paused_at", None),
-    )
+    return JobStatusResponse.from_job(job)

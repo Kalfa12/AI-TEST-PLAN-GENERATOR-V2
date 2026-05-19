@@ -29,10 +29,12 @@ from ai_testplan_generator.agents import (
     OrchestratorAgent,
     PlannerAgent,
     RequirementExtractorAgent,
+    RequirementReviewerAgent,
     ReviewerAgent,
     TestArchitectAgent,
     TestGeneratorAgent,
     TraceabilityAgent,
+    build_defect_report,
 )
 from ai_testplan_generator.agents.base import AgentContext
 from ai_testplan_generator.models import Chunk
@@ -49,6 +51,7 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
     orchestrator = OrchestratorAgent(ctx)
     analyst = DocumentAnalystAgent(ctx)
     extractor = RequirementExtractorAgent(ctx)
+    requirement_reviewer = RequirementReviewerAgent(ctx)
     architect = TestArchitectAgent(ctx)
     generator = TestGeneratorAgent(ctx)
     traceability = TraceabilityAgent(ctx)
@@ -76,6 +79,12 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         )
         return {"requirements": out.requirements}
 
+    async def _requirement_reviewer(state: AutonomousState) -> dict[str, Any]:
+        report = await requirement_reviewer.invoke(
+            RequirementReviewerAgent.Input(requirements=state.requirements)
+        )
+        return {"requirement_review_report": report}
+
     async def _architect(state: AutonomousState) -> dict[str, Any]:
         plan = await architect.invoke(
             TestArchitectAgent.Input(
@@ -97,16 +106,16 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         if not out.test_cases:
             return {"error": "generator failed to produce any valid test cases (all LLM calls failed or timed out)"}
         state.plan.test_cases = out.test_cases
-        # Always clear stale traceability/review state so the orchestrator is
-        # forced back through traceability → reviewer on the next pass.
-        # Without this, revision_round never increments and the loop is infinite:
-        # orchestrator sees review_report != None, asks LLM, LLM says "generator",
-        # generator runs, revision_round is still the same → endless spin.
+        # Always clear stale traceability/review/defect state so the orchestrator
+        # is forced back through traceability → reviewer → defect_aggregator on
+        # the next pass. Without this, revision_round never increments and the
+        # loop is infinite.
         return {
             "plan": state.plan,
             "test_cases": out.test_cases,
             "trace_report": None,
             "review_report": None,
+            "defect_report": None,
         }
 
     async def _traceability(state: AutonomousState) -> dict[str, Any]:
@@ -133,15 +142,27 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         schedule = await planner.invoke(PlannerAgent.Input(plan=state.plan, resources=[]))
         return {"schedule": schedule}
 
+    async def _defect_aggregator(state: AutonomousState) -> dict[str, Any]:
+        report = build_defect_report(
+            plan=state.plan,
+            requirements=state.requirements,
+            review_report=state.review_report,
+            requirement_review_report=state.requirement_review_report,
+            trace_report=state.trace_report,
+        )
+        return {"defect_report": report}
+
     # --- wiring --------------------------------------------------------------
 
     graph.add_node("orchestrator", _orchestrate)
     graph.add_node("analyst", _analyst)
     graph.add_node("extractor", _extractor)
+    graph.add_node("requirement_reviewer", _requirement_reviewer)
     graph.add_node("architect", _architect)
     graph.add_node("generator", _generator)
     graph.add_node("traceability", _traceability)
     graph.add_node("reviewer", _reviewer)
+    graph.add_node("defect_aggregator", _defect_aggregator)
     graph.add_node("planner", _planner)
 
     graph.set_entry_point("orchestrator")
@@ -157,10 +178,12 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         {
             "analyst": "analyst",
             "extractor": "extractor",
+            "requirement_reviewer": "requirement_reviewer",
             "architect": "architect",
             "generator": "generator",
             "traceability": "traceability",
             "reviewer": "reviewer",
+            "defect_aggregator": "defect_aggregator",
             "planner": "planner",
             END: END,
         },
@@ -170,10 +193,12 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
     for worker in (
         "analyst",
         "extractor",
+        "requirement_reviewer",
         "architect",
         "generator",
         "traceability",
         "reviewer",
+        "defect_aggregator",
         "planner",
     ):
         graph.add_edge(worker, "orchestrator")

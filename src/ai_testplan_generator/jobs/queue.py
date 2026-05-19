@@ -210,6 +210,7 @@ class FakeJobQueue:
         event_broker: Any,
         plans: dict[str, Any],
         project_plans: dict[str, list[str]],
+        defects: dict[str, Any] | None = None,
     ) -> None:
         self._jobs: dict[str, Job] = {}
         self._ctx: dict[str, Any] = {
@@ -218,6 +219,7 @@ class FakeJobQueue:
             "event_broker": event_broker,
             "plans": plans,
             "project_plans": project_plans,
+            "defects": defects if defects is not None else {},
             "max_tries": 4,
         }
 

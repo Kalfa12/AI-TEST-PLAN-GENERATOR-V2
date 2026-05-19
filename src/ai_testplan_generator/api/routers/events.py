@@ -37,6 +37,8 @@ class JobStatusResponse(BaseModel):
     error: str | None = None
     created_at: str
     updated_at: str
+    # Populated for interactive runs that are awaiting user accept/reprompt.
+    paused_at: str | None = None
 
     @classmethod
     def from_job(cls, job: Job) -> "JobStatusResponse":
@@ -49,6 +51,7 @@ class JobStatusResponse(BaseModel):
             error=job.error,
             created_at=job.created_at.isoformat(),
             updated_at=job.updated_at.isoformat(),
+            paused_at=getattr(job, "paused_at", None),
         )
 
 

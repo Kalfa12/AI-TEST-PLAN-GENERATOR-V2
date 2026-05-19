@@ -25,10 +25,16 @@ class CreatePlanAccepted(BaseModel):
 
 
 class JobStatusResponse(BaseModel):
-    job_id: str
+    # Shape mirrors the `Job` dataclass so existing tests and the frontend's
+    # `JobStatus` interface remain backwards-compatible.
+    id: str
+    kind: str = ""
     status: str
+    session_id: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
     paused_at: str | None = None
 
 

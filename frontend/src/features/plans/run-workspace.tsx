@@ -209,6 +209,53 @@ export function RunWorkspacePage() {
   );
 }
 
+// Build a free-text feedback draft from the partial defect report so the
+// user doesn't have to retype what the static checks already flagged.
+function draftFeedbackFromDefects(
+  checkpoint: CheckpointResponse,
+): string {
+  const targetKind =
+    checkpoint.paused_at === "extractor"
+      ? "requirement"
+      : checkpoint.paused_at === "generator"
+      ? "test_case"
+      : null;
+  if (!targetKind) return "";
+
+  const report = checkpoint.state.defect_report as
+    | { defects?: Array<Record<string, unknown>> }
+    | null
+    | undefined;
+  const defects = report?.defects ?? [];
+  if (defects.length === 0) return "";
+
+  const SEVERITY_RANK_LOCAL: Record<string, number> = {
+    critical: 3,
+    major: 2,
+    minor: 1,
+  };
+
+  const relevant = defects
+    .filter((d) => d.target_kind === targetKind)
+    .sort(
+      (a, b) =>
+        (SEVERITY_RANK_LOCAL[String(b.severity)] ?? 0) -
+        (SEVERITY_RANK_LOCAL[String(a.severity)] ?? 0),
+    )
+    .slice(0, 8);
+
+  if (relevant.length === 0) return "";
+
+  const lines = relevant.map((d) => {
+    const id = String(d.target_id ?? "?");
+    const type = String(d.defect_type ?? "defect").replace(/_/g, " ");
+    const evidence = String(d.evidence ?? "");
+    const fix = d.suggestion ? ` Fix: ${String(d.suggestion)}` : "";
+    return `- ${id} (${type}): ${evidence}${fix}`;
+  });
+  return `Address the following defects:\n${lines.join("\n")}`;
+}
+
 function CheckpointCard({
   checkpoint,
   actionPending,
@@ -228,6 +275,16 @@ function CheckpointCard({
     setFeedback("");
     setShowFeedback(false);
   }, [checkpoint.paused_at]);
+
+  // Open feedback panel pre-filled with the defect summary the agent
+  // detected, so the engineer can trim/edit instead of typing from scratch.
+  const onOpenFeedbackFromDefects = () => {
+    const draft = draftFeedbackFromDefects(checkpoint);
+    setFeedback(draft);
+    setShowFeedback(true);
+  };
+
+  const defectDraftAvailable = draftFeedbackFromDefects(checkpoint).length > 0;
 
   const previousFeedback =
     (checkpoint.state.user_feedback?.[checkpoint.paused_at] as string[] | undefined) ?? [];
@@ -286,6 +343,15 @@ function CheckpointCard({
             >
               Send feedback and re-run
             </Button>
+            {defectDraftAvailable && (
+              <Button
+                variant="outline"
+                onClick={onOpenFeedbackFromDefects}
+                disabled={actionPending}
+              >
+                Reprompt from detected defects
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -326,8 +392,57 @@ function CheckpointCard({
 
 // ---- per-checkpoint preview components ----
 
+type DefectMap = Map<
+  string,
+  { count: number; worst: "critical" | "major" | "minor" }
+>;
+
+const SEVERITY_RANK = { critical: 3, major: 2, minor: 1 } as const;
+
+function defectsByTarget(state: Record<string, unknown>): DefectMap {
+  const out: DefectMap = new Map();
+  const report = state.defect_report as
+    | { defects?: Array<Record<string, unknown>> }
+    | null
+    | undefined;
+  if (!report?.defects) return out;
+  for (const d of report.defects) {
+    const id = String(d.target_id ?? "");
+    if (!id) continue;
+    const sev = (d.severity as "critical" | "major" | "minor") ?? "minor";
+    const prev = out.get(id);
+    if (!prev) {
+      out.set(id, { count: 1, worst: sev });
+    } else {
+      prev.count += 1;
+      if (SEVERITY_RANK[sev] > SEVERITY_RANK[prev.worst]) prev.worst = sev;
+    }
+  }
+  return out;
+}
+
+function DefectDot({
+  entry,
+}: {
+  entry: { count: number; worst: "critical" | "major" | "minor" } | undefined;
+}) {
+  if (!entry) return null;
+  const tone =
+    entry.worst === "critical"
+      ? "danger"
+      : entry.worst === "major"
+      ? "warning"
+      : "info";
+  return (
+    <Badge tone={tone} title={`${entry.count} defect(s), worst: ${entry.worst}`}>
+      {entry.count} defect{entry.count > 1 ? "s" : ""}
+    </Badge>
+  );
+}
+
 function RequirementsPreview({ state }: { state: Record<string, unknown> }) {
   const reqs = (state.requirements ?? []) as Array<Record<string, unknown>>;
+  const defects = defectsByTarget(state);
   if (reqs.length === 0) {
     return <p className="text-sm text-muted-foreground">No requirements extracted.</p>;
   }
@@ -343,6 +458,7 @@ function RequirementsPreview({ state }: { state: Record<string, unknown> }) {
               <span className="text-xs text-muted-foreground">
                 priority {String(r.priority ?? "—")}
               </span>
+              <DefectDot entry={defects.get(String(r.id ?? ""))} />
             </div>
             <div className="font-medium mt-0.5">{String(r.title ?? "")}</div>
             <div className="text-xs text-muted-foreground">
@@ -394,6 +510,7 @@ function ArchitectPreview({ state }: { state: Record<string, unknown> }) {
 
 function GeneratorPreview({ state }: { state: Record<string, unknown> }) {
   const tcs = (state.test_cases ?? []) as Array<Record<string, unknown>>;
+  const defects = defectsByTarget(state);
   if (tcs.length === 0) {
     return <p className="text-sm text-muted-foreground">No test cases generated.</p>;
   }
@@ -421,6 +538,7 @@ function GeneratorPreview({ state }: { state: Record<string, unknown> }) {
                   {(tc.requirement_ids as string[]).join(", ")}
                 </span>
               )}
+              <DefectDot entry={defects.get(String(tc.id ?? ""))} />
             </div>
             <div className="font-medium mt-0.5">{String(tc.title ?? "")}</div>
             <div className="text-xs text-muted-foreground">

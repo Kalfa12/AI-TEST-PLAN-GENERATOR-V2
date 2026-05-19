@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 from ai_testplan_generator.agents.reviewer import ReviewReport
 from ai_testplan_generator.agents.traceability import TraceabilityReport
 from ai_testplan_generator.models import (
+    DefectReport,
     DetailLevel,
     Document,
     Requirement,
@@ -42,7 +43,9 @@ class AutonomousState(BaseModel):
 
     # Review feedback loop.
     review_report: ReviewReport | None = None
+    requirement_review_report: ReviewReport | None = None
     trace_report: TraceabilityReport | None = None
+    defect_report: DefectReport | None = None
     revision_round: int = 0
     max_revision_rounds: int = 3
 

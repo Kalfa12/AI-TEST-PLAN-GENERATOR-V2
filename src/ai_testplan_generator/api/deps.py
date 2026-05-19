@@ -17,7 +17,7 @@ from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.events.broker import EventBroker
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
-from ai_testplan_generator.models import TestPlan
+from ai_testplan_generator.models import DefectReport, TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
 
@@ -56,6 +56,10 @@ def get_plans(request: Request) -> dict[str, TestPlan]:
 
 def get_project_plans(request: Request) -> dict[str, list[str]]:
     return cast(dict[str, list[str]], request.app.state.project_plans)
+
+
+def get_defects(request: Request) -> dict[str, DefectReport]:
+    return cast(dict[str, DefectReport], request.app.state.defects)
 
 
 def get_user_repo(request: Request) -> UserRepository:
