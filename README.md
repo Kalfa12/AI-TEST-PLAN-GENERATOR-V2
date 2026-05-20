@@ -29,9 +29,10 @@ Built for QA / V&V teams in aerospace, automotive, energy, and medical industrie
 7. [Tech stack and design choices](#7-tech-stack-and-design-choices)
 8. [Quick start](#8-quick-start)
 9. [Project structure](#9-project-structure)
-10. [Observability and testing](#10-observability-and-testing)
-11. [Visual mockups](#11-visual-mockups)
-12. [Roadmap](#12-roadmap)
+10. [Benchmark — measuring what we ship](#10-benchmark--measuring-what-we-ship)
+11. [Observability and testing](#11-observability-and-testing)
+12. [Visual mockups](#12-visual-mockups)
+13. [Roadmap](#13-roadmap)
 
 ---
 
@@ -320,7 +321,30 @@ ops/                     Helm chart, Dockerfile, compose stack
 
 ---
 
-## 10. Observability and testing
+## 10. Benchmark — measuring what we ship
+
+The project includes a self-contained **evaluation harness** that scores
+requirement extraction and defect detection against curated specifications,
+because every claim about quality should be falsifiable.
+
+```bash
+make eval                        # no LLM keys needed — uses fixtures
+make eval-full                   # full pipeline — requires LLM keys
+make eval-baseline               # re-capture baseline after intentional changes
+```
+
+**Current baseline** (`evals/baseline.json`):
+
+| Benchmark | Defect recall | Notes |
+|---|---|---|
+| Synthetic aerospace SRS (11 reqs, 6 defects) | **83.3%** | One miss: mixed `should + shall` clause slips past the modality check — known bug surfaced by this very harness. |
+
+The harness is regression-safe (`make eval --fail-on-regression`), tracks
+missed defects per benchmark, and writes both Markdown and JSON
+reports for CI integration. See [`evals/README.md`](evals/README.md) for the
+benchmark schema and how to add new ones.
+
+## 11. Observability and testing
 
 Production-grade visibility was a hard requirement from day one:
 
@@ -332,13 +356,13 @@ Production-grade visibility was a hard requirement from day one:
 
 ---
 
-## 11. Visual mockups
+## 12. Visual mockups
 
 [`mockup.html`](mockup.html) — single-file polished mockup of the six main screens (project dashboard, plan generation workspace with interactive checkpoints, plan detail, knowledge base, traceability graph, copilot chat). Open in any browser; no build step.
 
 ---
 
-## 12. Roadmap
+## 13. Roadmap
 
 **Shipped:**
 - Full 7-agent autonomous pipeline with bounded revision loops

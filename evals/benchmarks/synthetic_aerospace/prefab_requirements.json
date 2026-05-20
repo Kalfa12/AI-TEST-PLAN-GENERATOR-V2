@@ -1,0 +1,104 @@
+{
+  "_comment": "Hand-curated Requirement objects matching the spec. Used by `eval --static-only` so the harness can be exercised without LLM keys. When the harness runs --full, this file is ignored and the LLM extractor produces requirements directly.",
+  "requirements": [
+    {
+      "external_id": "REQ-001",
+      "kind": "functional",
+      "title": "Pressure regulation tolerance",
+      "statement": "The pump controller shall regulate the hydraulic line pressure within ±2 bar of the commanded setpoint during nominal operation.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_001"]
+    },
+    {
+      "external_id": "REQ-002",
+      "kind": "performance",
+      "title": "Pressure loop cycle time",
+      "statement": "The controller shall complete a pressure-loop cycle in less than 8 ms under nominal CPU load.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_002"]
+    },
+    {
+      "external_id": "REQ-003",
+      "kind": "functional",
+      "title": "Pressure telemetry rate",
+      "statement": "The controller should report current pressure to the platform bus at a rate of 50 Hz.",
+      "priority": 3,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_003"]
+    },
+    {
+      "external_id": "REQ-004",
+      "kind": "safety",
+      "title": "Over-pressure protection",
+      "statement": "The over-pressure protection circuit shall trip when measured line pressure exceeds 285 bar for more than 100 ms.",
+      "priority": 1,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_004"]
+    },
+    {
+      "external_id": "REQ-005",
+      "kind": "safety",
+      "title": "Safe state entry time",
+      "statement": "The controller shall enter the SAFE state within 50 ms of detecting a solenoid drive fault.",
+      "priority": 1,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_005"]
+    },
+    {
+      "external_id": "REQ-006",
+      "kind": "safety",
+      "title": "Safety event logging",
+      "statement": "The controller shall log all DAL-B safety events to non-volatile memory.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_006"]
+    },
+    {
+      "external_id": "REQ-007",
+      "kind": "functional",
+      "title": "Power-on built-in test",
+      "statement": "The power-on built-in test (PBIT) shall complete in less than 3 seconds and report PASS/FAIL on the maintenance discrete output.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_007"]
+    },
+    {
+      "external_id": "REQ-008",
+      "kind": "reliability",
+      "title": "Communication recovery",
+      "statement": "The controller shall always recover from a transient communication loss within an appropriate time.",
+      "priority": 3,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_008"]
+    },
+    {
+      "external_id": "REQ-009",
+      "kind": "interface",
+      "title": "CAN-FD interface",
+      "statement": "The CAN-FD interface should be implemented and the message framing shall conform to the platform ICD revision TBD.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_009"]
+    },
+    {
+      "external_id": "REQ-010",
+      "kind": "functional",
+      "title": "Fault handling",
+      "statement": "The controller shall handle every fault condition.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_010"]
+    },
+    {
+      "external_id": "REQ-011",
+      "kind": "regulatory",
+      "title": "DO-178C compliance",
+      "statement": "The software shall be developed under DO-178C objectives appropriate for DAL-B.",
+      "priority": 2,
+      "source_document_id": "doc_synthetic_aero",
+      "source_chunk_ids": ["ch_synth_011"]
+    }
+  ]
+}

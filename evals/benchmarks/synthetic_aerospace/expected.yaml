@@ -1,0 +1,80 @@
+# Expected output for the synthetic_aerospace benchmark.
+#
+# Schema:
+#   name                  — human-readable benchmark name
+#   description           — what this benchmark tests
+#   spec                  — path (relative to this file) to the input spec
+#   expected_requirements — list of expected extractor outputs, each with:
+#     - id                — external requirement id appearing in the spec
+#     - kind              — expected RequirementKind
+#     - statement_excerpt — a substring the extracted statement must contain
+#                           (case-insensitive). Loose enough to survive LLM
+#                           paraphrasing.
+#   expected_defects      — list of (target_external_id, defect_type) pairs the
+#                           static + LLM detectors should flag. We score
+#                           detection by counting how many of these the
+#                           system finds, not by exact severity match.
+
+name: Synthetic aerospace SRS
+description: >
+  11 requirements spanning functional, safety, performance, interface, and
+  regulatory kinds. Six requirements are deliberately defective (TBD, modality
+  drift, universal qualifier, vague modifier, compound) to exercise the
+  defect-detection path.
+spec: spec.md
+
+expected_requirements:
+  - external_id: REQ-001
+    kind: functional
+    statement_excerpt: regulate the hydraulic line pressure within
+  - external_id: REQ-002
+    kind: performance
+    statement_excerpt: pressure-loop cycle in less than 8 ms
+  - external_id: REQ-003
+    kind: functional
+    statement_excerpt: report current pressure to the platform bus
+  - external_id: REQ-004
+    kind: safety
+    statement_excerpt: over-pressure protection circuit shall trip
+  - external_id: REQ-005
+    kind: safety
+    statement_excerpt: SAFE state within 50 ms
+  - external_id: REQ-006
+    kind: safety
+    statement_excerpt: log all DAL-B safety events
+  - external_id: REQ-007
+    kind: functional
+    statement_excerpt: power-on built-in test
+  - external_id: REQ-008
+    kind: reliability
+    statement_excerpt: recover from a transient communication loss
+  - external_id: REQ-009
+    kind: interface
+    statement_excerpt: CAN-FD interface
+  - external_id: REQ-010
+    kind: functional
+    statement_excerpt: handle every fault condition
+  - external_id: REQ-011
+    kind: regulatory
+    statement_excerpt: DO-178C
+
+expected_defects:
+  # REQ-003 uses "should" instead of "shall" → modality drift
+  - target_external_id: REQ-003
+    defect_type: modality_drift
+
+  # REQ-008: universal qualifier "always" + vague modifier "appropriate time"
+  - target_external_id: REQ-008
+    defect_type: universal_qualifier_misuse
+  - target_external_id: REQ-008
+    defect_type: vague_modifiers
+
+  # REQ-009: "TBD" placeholder + compound requirement + modality drift
+  - target_external_id: REQ-009
+    defect_type: tbd_placeholder
+  - target_external_id: REQ-009
+    defect_type: modality_drift
+
+  # REQ-010: universal qualifier "every"
+  - target_external_id: REQ-010
+    defect_type: universal_qualifier_misuse

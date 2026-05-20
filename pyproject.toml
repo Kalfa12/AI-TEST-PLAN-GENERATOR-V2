@@ -66,6 +66,8 @@ vector-chroma = ["chromadb>=0.5"]
 graph-neo4j = ["neo4j>=5.24"]
 storage-s3 = ["aioboto3>=13.0"]
 loaders-extra = ["unstructured>=0.15", "pdfplumber>=0.11"]
+# Evaluation harness dependencies (used only by `python -m evals.cli`).
+evals = ["pyyaml>=6.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/ai_testplan_generator"]
@@ -83,6 +85,18 @@ python_version = "3.11"
 strict = true
 plugins = ["pydantic.mypy"]
 warn_unused_ignores = true
+mypy_path = "src:."
+
+[tool.pyright]
+# Tell pyright / IDE-based checkers that `evals/` and `tests/` are
+# importable from the repo root, not only from `src/` (which is the
+# only root inferred from the hatch wheel config).
+include = ["src", "evals", "tests"]
+extraPaths = ["src", "."]
+
+[tool.ty.src]
+# Mirror of the pyright config for Astral's `ty` checker.
+root = ["src", "evals", "tests"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
