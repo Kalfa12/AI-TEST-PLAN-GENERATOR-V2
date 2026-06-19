@@ -86,18 +86,6 @@ def _document_list_item(d: Document, n_chunks: int) -> DocumentListItem:
     )
 
 
-async def _delete_document_artefacts(brain: Brain, doc_id: str) -> None:
-    brain.memory._store.documents.pop(doc_id, None)  # type: ignore[attr-defined]
-    chunks = list(brain.memory._store.chunks.values())  # type: ignore[attr-defined]
-    for ch in chunks:
-        if ch.document_id == doc_id:
-            brain.memory._store.chunks.pop(ch.id, None)  # type: ignore[attr-defined]
-    reqs = list(brain.memory._store.requirements.values())  # type: ignore[attr-defined]
-    for req in reqs:
-        if req.source_document_id == doc_id:
-            brain.memory._store.requirements.pop(req.id, None)  # type: ignore[attr-defined]
-
-
 async def _stream_to_blob(
     file: UploadFile,
     blob_store: BlobStore,
@@ -152,6 +140,7 @@ async def _ingest_from_bytes(
             blob_key=blob_uri,
             filename=filename,
         )
+        await brain.memory.register_document(doc)
         return doc, len(result.sections), len(result.chunks), len(result.requirements)
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -313,8 +302,7 @@ async def delete_document(
     except Exception:
         pass  # blob may already be gone
 
-    # Remove from in-memory stores.
-    await _delete_document_artefacts(brain, doc_id)
+    await brain.memory.delete_document(doc_id)
 
     _log.info("doc_deleted", project_id=project_id, doc_id=doc_id)
 
@@ -416,5 +404,5 @@ async def delete_general_document(
         await blob_store.delete(_blob_key_for_document(doc))
     except Exception:
         pass
-    await _delete_document_artefacts(brain, doc_id)
+    await brain.memory.delete_document(doc_id)
     _log.info("general_doc_deleted", doc_id=doc_id)

@@ -57,6 +57,7 @@ async def run_autonomous(
         plan = result.plan
         if plan is None:
             raise RuntimeError("Pipeline completed without producing a plan.")
+        await brain.memory.register_test_plan(plan)
 
         plan_key = f"projects/{project_id}/plans/{plan.id}.json"
         await blob_store.put(
@@ -190,6 +191,7 @@ async def run_autonomous_interactive(
             session_id=session_id,
         )
         plan = result["plan"]
+        await brain.memory.register_test_plan(plan)
 
         plan_key = f"projects/{project_id}/plans/{plan.id}.json"
         await blob_store.put(
@@ -266,6 +268,7 @@ async def delete_project_artefacts(
         except Exception:
             pass
         deleted += 1
+    await brain.memory.delete_project_artefacts(project_id)
 
     _log.info("arq_delete_project", project_id=project_id, deleted=deleted)
     return {"project_id": project_id, "deleted_documents": deleted}

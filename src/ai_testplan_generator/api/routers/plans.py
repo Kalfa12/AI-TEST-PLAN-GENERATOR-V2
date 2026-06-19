@@ -23,7 +23,6 @@ from ai_testplan_generator.api.deps import (
     get_current_user,
     get_job_queue,
     get_plans,
-    get_project_plans,
 )
 from ai_testplan_generator.api.errors import NotFoundError
 from ai_testplan_generator.api.security.rbac import require
@@ -84,10 +83,9 @@ async def create_plan(
 )
 async def list_plans(
     project_id: str,
-    plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
-    project_plans: Annotated[dict[str, list[str]], Depends(get_project_plans)],
+    brain: Annotated[Brain, Depends(get_brain)],
 ) -> PlanListResponse:
-    ids = project_plans.get(project_id, [])
+    project_plans = await brain.memory.get_test_plans_for_project(project_id)
     items = [
         PlanListItem(
             id=p.id,
@@ -95,8 +93,7 @@ async def list_plans(
             detail_level=p.detail_level.value,
             n_test_cases=len(p.test_cases),
         )
-        for pid in ids
-        if (p := plans.get(pid)) is not None
+        for p in project_plans
     ]
     return PlanListResponse(items=items, total=len(items))
 
@@ -109,10 +106,11 @@ async def list_plans(
 async def export_plan_json(
     project_id: str,  # noqa: ARG001
     plan_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
 ) -> Response:
-    plan = plans.get(plan_id)
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
     if plan is None:
         key = f"projects/{project_id}/plans/{plan_id}.json"
         try:
@@ -143,13 +141,15 @@ async def plan_coverage(
     brain: Annotated[Brain, Depends(get_brain)],
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
 ) -> CoverageMatrixResponse:
-    plan = plans.get(plan_id)
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
     if plan is None:
         raise NotFoundError(f"Plan '{plan_id}' not found.")
     req_ids = list(plan.coverage_matrix.keys())
     if not req_ids:
         req_ids = list({rid for tc in plan.test_cases for rid in tc.requirement_ids})
     matrix = brain.memory.graph.coverage_matrix(req_ids)
+    if not any(matrix.values()) and plan.coverage_matrix:
+        matrix = plan.coverage_matrix
     return CoverageMatrixResponse(plan_id=plan_id, matrix=matrix)
 
 
@@ -162,10 +162,11 @@ async def plan_coverage(
 async def get_plan(
     project_id: str,  # noqa: ARG001
     plan_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
     detail: Annotated[str | None, Query()] = None,
 ) -> TestPlan | TestPlanSummary:
-    plan = plans.get(plan_id)
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
     if plan is None:
         raise NotFoundError(f"Plan '{plan_id}' not found.")
     if detail == "summary":
@@ -182,16 +183,15 @@ async def get_plan(
 async def delete_plan(
     project_id: str,
     plan_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
-    project_plans: Annotated[dict[str, list[str]], Depends(get_project_plans)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
 ) -> None:
-    if plan_id not in plans:
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
+    if plan is None:
         raise NotFoundError(f"Plan '{plan_id}' not found.")
     plans.pop(plan_id, None)
-    ids = project_plans.get(project_id, [])
-    if plan_id in ids:
-        ids.remove(plan_id)
+    await brain.memory.delete_test_plan(plan_id)
     try:
         key = f"projects/{project_id}/plans/{plan_id}.json"
         await blob_store.delete(key)

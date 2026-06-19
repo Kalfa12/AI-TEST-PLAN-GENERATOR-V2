@@ -36,6 +36,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     from ai_testplan_generator.ingestion.pipeline import IngestionPipeline
     from ai_testplan_generator.knowledge import GeneralKnowledgeBase
     from ai_testplan_generator.llm import get_gateway
+    from ai_testplan_generator.domain.artifacts import ArtifactRepository
     from ai_testplan_generator.memory.backends import (
         build_episodic_store,
         build_graph_store,
@@ -49,11 +50,18 @@ async def startup(ctx: dict[str, Any]) -> None:
     semantic = build_semantic_store(cfg)
     graph = build_graph_store(cfg)
     blob_store = build_blob_store(cfg)
+    artifact_repo = await ArtifactRepository.create(db_path=cfg.app_db_path)
 
     llm = get_gateway()
     memory = MemoryManager(
-        llm=llm, settings=cfg, episodic=episodic, semantic=semantic, graph=graph
+        llm=llm,
+        settings=cfg,
+        episodic=episodic,
+        semantic=semantic,
+        graph=graph,
+        artifact_repo=artifact_repo,
     )
+    await memory.hydrate()
     ingestion = IngestionPipeline(llm=llm, memory=memory, settings=cfg)
     general_kb = GeneralKnowledgeBase(ingestion)
     brain = Brain(
@@ -67,6 +75,7 @@ async def startup(ctx: dict[str, Any]) -> None:
 
     ctx["brain"] = brain
     ctx["blob_store"] = blob_store
+    ctx["artifact_repo"] = artifact_repo
     ctx["event_broker"] = event_broker
     ctx["settings"] = cfg
     ctx["max_tries"] = WorkerSettings.max_tries
@@ -86,6 +95,8 @@ async def shutdown(ctx: dict[str, Any]) -> None:
         graph = brain.memory.graph
         if hasattr(graph, "close"):
             await graph.close()  # type: ignore[union-attr]
+        if brain.memory.artifact_repo is not None:
+            await brain.memory.artifact_repo.close()
 
     event_broker = ctx.get("event_broker")
     if event_broker is not None and hasattr(event_broker, "close"):

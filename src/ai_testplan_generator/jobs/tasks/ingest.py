@@ -65,6 +65,7 @@ async def ingest_document(
             "ingest_source_uri": ingest_source_uri,
             "original_filename": filename,
         }
+        await brain.memory.register_document(doc)
         out: dict[str, Any] = {
             "document_id": doc.id,
             "n_sections": len(result.sections),

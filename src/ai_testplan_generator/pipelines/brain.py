@@ -15,6 +15,7 @@ from typing import Any
 
 from ai_testplan_generator.agents.base import AgentContext
 from ai_testplan_generator.config import Settings, get_settings
+from ai_testplan_generator.domain.artifacts import ArtifactRepository
 from ai_testplan_generator.ingestion.pipeline import IngestionPipeline
 from ai_testplan_generator.knowledge import GeneralKnowledgeBase, ProjectKnowledgeBase
 from ai_testplan_generator.llm import LLMGateway, get_gateway
@@ -45,10 +46,16 @@ class Brain:
         )
 
     @classmethod
-    def build(cls, *, llm: LLMGateway | None = None, settings: Settings | None = None) -> "Brain":
+    def build(
+        cls,
+        *,
+        llm: LLMGateway | None = None,
+        settings: Settings | None = None,
+        artifact_repo: ArtifactRepository | None = None,
+    ) -> "Brain":
         settings = settings or get_settings()
         llm = llm or get_gateway()
-        memory = MemoryManager(llm=llm, settings=settings)
+        memory = MemoryManager(llm=llm, settings=settings, artifact_repo=artifact_repo)
         ingestion = IngestionPipeline(llm=llm, memory=memory, settings=settings)
         general = GeneralKnowledgeBase(ingestion)
         return cls(

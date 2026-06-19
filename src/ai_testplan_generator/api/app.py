@@ -66,6 +66,9 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         from ai_testplan_generator.llm import get_gateway
         from ai_testplan_generator.memory.manager import MemoryManager
         from ai_testplan_generator.pipelines.brain import Brain
+        from ai_testplan_generator.domain.artifacts import ArtifactRepository
+
+        artifact_repo = await ArtifactRepository.create(db_path=cfg.app_db_path)
 
         llm = get_gateway()
         memory = MemoryManager(
@@ -74,7 +77,9 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
             episodic=episodic,
             semantic=semantic,
             graph=graph,
+            artifact_repo=artifact_repo,
         )
+        await memory.hydrate()
         ingestion = IngestionPipeline(llm=llm, memory=memory, settings=cfg)
         general_kb = GeneralKnowledgeBase(ingestion)
         brain = Brain(
@@ -141,6 +146,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         app.state.blob_store = blob_store
         app.state.project_repo = project_repo
         app.state.user_repo = user_repo
+        app.state.artifact_repo = artifact_repo
         app.state.event_broker = event_broker
         app.state.job_queue = job_queue  # None when Redis is unavailable
         app.state.redis_pool = redis_pool
@@ -158,6 +164,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
             await graph.close()  # type: ignore[union-attr]
         await project_repo.close()
         await user_repo.close()
+        await artifact_repo.close()
         if redis_pool is not None:
             await redis_pool.aclose()
         if hasattr(event_broker, "close"):
