@@ -57,6 +57,14 @@ async def ingest_document(
             tmp_path.unlink(missing_ok=True)
 
         doc = result.document
+        ingest_source_uri = doc.source_uri
+        doc.source_uri = blob_key
+        doc.metadata = {
+            **doc.metadata,
+            "blob_key": blob_key,
+            "ingest_source_uri": ingest_source_uri,
+            "original_filename": filename,
+        }
         out: dict[str, Any] = {
             "document_id": doc.id,
             "n_sections": len(result.sections),

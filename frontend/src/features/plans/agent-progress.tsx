@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { http } from "@/lib/api/http";
+import { readTokens } from "@/lib/auth/storage";
 
 const PIPELINE: { key: string; label: string; description: string }[] = [
   { key: "analyst",      label: "Document Analyst",     description: "Summarising corpus & detecting gaps" },
@@ -50,7 +51,7 @@ export function AgentProgress({ sessionId, jobStatus, jobError }: Props) {
   useEffect(() => {
     if (!sessionId) return;
 
-    const token = localStorage.getItem("access_token");
+    const token = readTokens()?.access;
     const baseUrl = (http.defaults.baseURL ?? "http://localhost:8000").replace(/\/$/, "");
     const url = `${baseUrl}/sessions/${sessionId}/events${token ? `?token=${token}` : ""}`;
 

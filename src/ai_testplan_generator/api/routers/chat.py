@@ -14,13 +14,21 @@ from typing import Annotated
 import structlog
 from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
 
-from ai_testplan_generator.api.deps import get_brain
+from ai_testplan_generator.api.deps import (
+    get_brain,
+    get_current_user,
+    get_current_user_ws,
+    get_project_repo,
+)
+from ai_testplan_generator.api.errors import AuthError
 from ai_testplan_generator.api.schemas.chat import (
     ChatReply,
     ChatRequest,
     ConfirmRequest,
     HistoryResponse,
 )
+from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.llm.base import ChatMessage
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.pipelines.interactive import InteractivePipeline
@@ -40,11 +48,30 @@ def _get_pipeline(brain: Brain) -> InteractivePipeline:
     return _pipelines[key]
 
 
+async def _ensure_project_chat_access(
+    project_id: str | None,
+    current_user: User,
+    project_repo: ProjectRepository,
+) -> None:
+    if not project_id or current_user.is_admin:
+        return
+    member = await project_repo.get_member(project_id, current_user.id)
+    if member is not None:
+        return
+    project = await project_repo.get_project(project_id)
+    if project is not None and project.owner_id == current_user.id:
+        return
+    raise AuthError(f"Forbidden: not a member of project '{project_id}'.")
+
+
 @router.post("/chat", response_model=ChatReply, summary="Send a chat message")
 async def chat(
     body: ChatRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
     brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> ChatReply:
+    await _ensure_project_chat_access(body.project_id, current_user, project_repo)
     pipeline = _get_pipeline(brain)
     session = pipeline.session(project_id=body.project_id, session_id=body.session_id)
     reply = await session.ask(body.message)
@@ -62,6 +89,7 @@ async def chat(
 )
 async def chat_history(
     session_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],  # noqa: ARG001
     brain: Annotated[Brain, Depends(get_brain)],
     limit: int = 50,
 ) -> HistoryResponse:
@@ -77,6 +105,7 @@ async def chat_history(
 async def confirm_action(
     session_id: str,
     body: ConfirmRequest,
+    current_user: Annotated[User, Depends(get_current_user)],  # noqa: ARG001
     brain: Annotated[Brain, Depends(get_brain)],
 ) -> ChatReply:
     message = "Confirmed." if body.confirmed else "Discarded."
@@ -100,7 +129,14 @@ async def chat_stream(
     Loads recent episodic history before each turn so the assistant can
     reference earlier user/assistant messages in the same session.
     """
+    try:
+        current_user = await get_current_user_ws(websocket)
+    except AuthError:
+        await websocket.close(code=1008)
+        return
+
     await websocket.accept()
+    websocket.state.current_user = current_user
     try:
         while True:
             message = await websocket.receive_text()

@@ -121,6 +121,10 @@ export interface TestPlanSummary {
   risks?: string[];
 }
 
+export type TestPlan = Omit<TestPlanSummary, "n_test_cases"> & {
+  n_test_cases?: number;
+};
+
 export interface CoverageMatrixResponse {
   plan_id: string;
   matrix: Record<string, string[]>;

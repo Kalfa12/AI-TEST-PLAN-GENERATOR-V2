@@ -16,6 +16,14 @@ class TestProjectCRUD:
         body = resp.json()
         assert body["name"] == "Pump Controller Tests"
         assert body["id"].startswith("proj_")
+        assert body["owner_id"] == "usr_test000001"
+
+        members = await client.get(f"/projects/{body['id']}/members")
+        assert members.status_code == 200
+        assert any(
+            m["user_id"] == "usr_test000001" and m["role"] == "owner"
+            for m in members.json()
+        )
 
     async def test_list_projects_empty(self, client: AsyncClient) -> None:
         resp = await client.get("/projects")

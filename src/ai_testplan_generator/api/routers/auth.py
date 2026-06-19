@@ -169,4 +169,5 @@ async def me(
         display_name=current_user.display_name,
         created_at=current_user.created_at.isoformat(),
         is_active=current_user.is_active,
+        is_admin=current_user.is_admin,
     )

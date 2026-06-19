@@ -50,3 +50,4 @@ class MeResponse(BaseModel):
     display_name: str
     created_at: str
     is_active: bool
+    is_admin: bool = False

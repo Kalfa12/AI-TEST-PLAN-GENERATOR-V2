@@ -56,3 +56,10 @@ class TestDocumentUpload:
             files={"file": ("img.png", b"data", "image/png")},
         )
         assert resp.status_code == 422
+
+    async def test_list_general_documents_empty(self, client: AsyncClient) -> None:
+        resp = await client.get("/general/documents")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["items"] == []
+        assert body["total"] == 0

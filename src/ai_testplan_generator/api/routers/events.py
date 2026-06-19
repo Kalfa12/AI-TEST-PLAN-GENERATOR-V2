@@ -14,7 +14,7 @@ from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from ai_testplan_generator.api.deps import get_event_broker, get_job_queue
+from ai_testplan_generator.api.deps import get_current_user, get_event_broker, get_job_queue
 from ai_testplan_generator.api.jobs import Job
 from ai_testplan_generator.events.broker import EventBroker
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
@@ -62,6 +62,7 @@ class JobStatusResponse(BaseModel):
 @router.get(
     "/sessions/{session_id}/events",
     summary="SSE stream of agent events for a session",
+    dependencies=[Depends(get_current_user)],
 )
 async def session_events(
     session_id: str,
@@ -92,6 +93,7 @@ async def session_events(
     "/jobs/{job_id}",
     response_model=JobStatusResponse,
     summary="Get current job status",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_job_status(
     job_id: str,

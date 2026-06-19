@@ -6,6 +6,7 @@ import type {
   JobStatus,
   PlanListItem,
   PlanListResponse,
+  TestPlan,
   TestPlanSummary,
 } from "@/lib/api/types";
 
@@ -17,10 +18,25 @@ export async function listPlans(projectId: string): Promise<PlanListItem[]> {
 export async function getPlan(
   projectId: string,
   planId: string,
+  detail: "summary",
+): Promise<TestPlanSummary>;
+export async function getPlan(
+  projectId: string,
+  planId: string,
+  detail: "full",
+): Promise<TestPlan>;
+export async function getPlan(
+  projectId: string,
+  planId: string,
+  detail: "summary" | "full",
+): Promise<TestPlanSummary | TestPlan>;
+export async function getPlan(
+  projectId: string,
+  planId: string,
   detail: "summary" | "full" = "full",
-): Promise<TestPlanSummary> {
+): Promise<TestPlanSummary | TestPlan> {
   const params = detail === "summary" ? { detail: "summary" } : undefined;
-  const res = await http.get<TestPlanSummary>(
+  const res = await http.get<TestPlanSummary | TestPlan>(
     `/projects/${projectId}/plans/${planId}`,
     { params },
   );

@@ -74,9 +74,10 @@ async def get_current_user(
     """Resolve the authenticated caller from a Bearer JWT or X-Api-Key header."""
     auth_header = request.headers.get("Authorization", "")
     api_key_header = request.headers.get("X-Api-Key", "")
+    query_token = request.query_params.get("token", "")
 
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]
+    if auth_header.startswith("Bearer ") or query_token:
+        token = auth_header[7:] if auth_header.startswith("Bearer ") else query_token
         from ai_testplan_generator.api.security.jwt import decode_token
 
         payload = decode_token(token, settings)
@@ -115,3 +116,23 @@ async def get_current_user(
         return user
 
     raise AuthError("Authentication required.")
+
+
+async def get_current_user_ws(websocket: WebSocket) -> User:
+    """Resolve a WebSocket caller from a JWT token query parameter."""
+    settings = cast(Settings, websocket.app.state.settings)
+    user_repo = cast(UserRepository, websocket.app.state.user_repo)
+    token = websocket.query_params.get("token", "")
+    if not token:
+        raise AuthError("Authentication required.")
+
+    from ai_testplan_generator.api.security.jwt import decode_token
+
+    payload = decode_token(token, settings)
+    user_id = str(payload.get("sub", ""))
+    if payload.get("scope") != "access":
+        raise AuthError("Token is not an access token.")
+    user = await user_repo.get_by_id(user_id)
+    if user is None or not user.is_active:
+        raise AuthError("User not found or disabled.")
+    return user

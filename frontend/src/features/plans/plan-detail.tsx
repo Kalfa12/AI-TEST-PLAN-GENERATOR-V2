@@ -28,6 +28,12 @@ export function PlanDetailPage() {
   const [detail, setDetail] = useState<"summary" | "full">("full");
   const plan = detail === "full" ? full.data : summary.data;
   const isLoading = full.isLoading && summary.isLoading;
+  const testCaseCount = plan?.n_test_cases ?? plan?.test_cases.length ?? 0;
+  const versionLabel = plan?.version
+    ? plan.version.startsWith("v")
+      ? plan.version
+      : `v${plan.version}`
+    : null;
 
   const onExportJson = async () => {
     if (!plan) return;
@@ -79,8 +85,8 @@ export function PlanDetailPage() {
           <div>
             <h1 className="text-2xl font-semibold">{plan.title}</h1>
             <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
-              <span>{plan.n_test_cases} test case{plan.n_test_cases === 1 ? "" : "s"}</span>
-              {plan.version && <span className="font-mono">v{plan.version}</span>}
+              <span>{testCaseCount} test case{testCaseCount === 1 ? "" : "s"}</span>
+              {versionLabel && <span className="font-mono">{versionLabel}</span>}
               {plan.author && <span>by {plan.author}</span>}
             </div>
           </div>

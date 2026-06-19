@@ -13,12 +13,8 @@ export interface UploadResult {
   job_id?: string;
 }
 
-const GENERAL_PID = "general";
-
 export async function listGeneralDocuments(): Promise<DocumentItem[]> {
-  const res = await http.get<DocumentListResponse>(
-    `/projects/${GENERAL_PID}/documents`,
-  );
+  const res = await http.get<DocumentListResponse>("/general/documents");
   return res.data.items;
 }
 
@@ -44,7 +40,7 @@ export async function uploadGeneralDocument(
 }
 
 export async function deleteGeneralDocument(docId: string): Promise<void> {
-  await http.delete(`/projects/${GENERAL_PID}/documents/${docId}`);
+  await http.delete(`/general/documents/${docId}`);
 }
 
 export async function getJobStatus(jobId: string): Promise<JobStatus> {

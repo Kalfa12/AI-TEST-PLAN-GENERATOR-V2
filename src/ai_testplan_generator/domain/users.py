@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS users (
     display_name    TEXT NOT NULL,
     password_hash   TEXT,
     created_at      TEXT NOT NULL,
-    disabled_at     TEXT
+    disabled_at     TEXT,
+    is_admin        INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
@@ -79,8 +80,18 @@ class UserRepository:
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
         await self._conn.executescript(_SCHEMA)
+        await self._ensure_schema()
         await self._conn.commit()
         _log.info("user_repo_init", db_path=path_str)
+
+    async def _ensure_schema(self) -> None:
+        """Apply lightweight migrations for repositories created by older builds."""
+        async with self._db().execute("PRAGMA table_info(users)") as cur:
+            columns = {str(row[1]) for row in await cur.fetchall()}
+        if "is_admin" not in columns:
+            await self._db().execute(
+                "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
+            )
 
     def _db(self) -> aiosqlite.Connection:
         if self._conn is None:
@@ -97,20 +108,26 @@ class UserRepository:
         email: str,
         display_name: str,
         password_hash: str | None = None,
+        is_admin: bool = False,
     ) -> User:
-        user = User(email=email, display_name=display_name, password_hash=password_hash)
+        user = User(
+            email=email,
+            display_name=display_name,
+            password_hash=password_hash,
+            is_admin=is_admin,
+        )
         await self._db().execute(
-            "INSERT INTO users (id, email, display_name, password_hash, created_at)"
-            " VALUES (?,?,?,?,?)",
+            "INSERT INTO users (id, email, display_name, password_hash, created_at, is_admin)"
+            " VALUES (?,?,?,?,?,?)",
             (user.id, user.email, user.display_name, user.password_hash,
-             user.created_at.isoformat()),
+             user.created_at.isoformat(), int(user.is_admin)),
         )
         await self._db().commit()
         return user
 
     async def get_by_id(self, user_id: str) -> User | None:
         async with self._db().execute(
-            "SELECT id,email,display_name,password_hash,created_at,disabled_at"
+            "SELECT id,email,display_name,password_hash,created_at,disabled_at,is_admin"
             " FROM users WHERE id=?",
             (user_id,),
         ) as cur:
@@ -119,7 +136,7 @@ class UserRepository:
 
     async def get_by_email(self, email: str) -> User | None:
         async with self._db().execute(
-            "SELECT id,email,display_name,password_hash,created_at,disabled_at"
+            "SELECT id,email,display_name,password_hash,created_at,disabled_at,is_admin"
             " FROM users WHERE email=?",
             (email,),
         ) as cur:
@@ -203,7 +220,7 @@ class UserRepository:
 # ------------------------------------------------------------------
 
 def _row_to_user(row: Any) -> User:
-    uid, email, display_name, password_hash, created_at, disabled_at = row
+    uid, email, display_name, password_hash, created_at, disabled_at, is_admin = row
     return User(
         id=uid,
         email=email,
@@ -211,6 +228,7 @@ def _row_to_user(row: Any) -> User:
         password_hash=password_hash,
         created_at=datetime.fromisoformat(created_at),
         disabled_at=datetime.fromisoformat(disabled_at) if disabled_at else None,
+        is_admin=bool(is_admin),
     )
 
 

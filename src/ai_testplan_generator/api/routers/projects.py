@@ -17,14 +17,16 @@ import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.api.deps import get_project_repo
+from ai_testplan_generator.api.deps import get_current_user, get_project_repo
 from ai_testplan_generator.api.errors import ConflictError, NotFoundError
+from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.domain.projects import (
     Project,
     ProjectMember,
     ProjectRepository,
     ProjectRole,
 )
+from ai_testplan_generator.domain.users import User
 
 _log = structlog.get_logger(__name__)
 
@@ -38,7 +40,8 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class CreateProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
-    owner_id: str = ""
+    # Deprecated input kept for old clients; the server always uses current_user.id.
+    owner_id: str | None = None
 
 
 class UpdateProjectRequest(BaseModel):
@@ -99,30 +102,51 @@ class ProjectListResponse(BaseModel):
 @router.post("", status_code=201, response_model=ProjectResponse, summary="Create a project")
 async def create_project(
     body: CreateProjectRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> ProjectResponse:
     proj = await repo.create_project(
-        name=body.name, description=body.description, owner_id=body.owner_id
+        name=body.name, description=body.description, owner_id=current_user.id
     )
-    _log.info("project_created", project_id=proj.id, name=proj.name)
+    await repo.add_member(proj.id, current_user.id, ProjectRole.OWNER)
+    _log.info(
+        "project_created",
+        project_id=proj.id,
+        name=proj.name,
+        owner_id=current_user.id,
+    )
     return ProjectResponse.from_project(proj)
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")
 async def list_projects(
+    current_user: Annotated[User, Depends(get_current_user)],
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
     limit: int = 50,
     offset: int = 0,
     include_archived: bool = False,
 ) -> ProjectListResponse:
-    items = await repo.list_projects(
-        include_archived=include_archived, limit=limit, offset=offset
-    )
+    if current_user.is_admin:
+        items = await repo.list_projects(
+            include_archived=include_archived, limit=limit, offset=offset
+        )
+    else:
+        items = await repo.list_projects_for_user(
+            current_user.id,
+            include_archived=include_archived,
+            limit=limit,
+            offset=offset,
+        )
     return ProjectListResponse(items=[ProjectResponse.from_project(p) for p in items],
                                total=len(items))
 
 
-@router.get("/{project_id}", response_model=ProjectResponse, summary="Get a project")
+@router.get(
+    "/{project_id}",
+    response_model=ProjectResponse,
+    summary="Get a project",
+    dependencies=[Depends(require("project.read"))],
+)
 async def get_project(
     project_id: str,
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
@@ -133,7 +157,12 @@ async def get_project(
     return ProjectResponse.from_project(proj)
 
 
-@router.patch("/{project_id}", response_model=ProjectResponse, summary="Update project metadata")
+@router.patch(
+    "/{project_id}",
+    response_model=ProjectResponse,
+    summary="Update project metadata",
+    dependencies=[Depends(require("project.write"))],
+)
 async def update_project(
     project_id: str,
     body: UpdateProjectRequest,
@@ -147,7 +176,12 @@ async def update_project(
     return ProjectResponse.from_project(proj)
 
 
-@router.delete("/{project_id}", status_code=204, summary="Archive a project")
+@router.delete(
+    "/{project_id}",
+    status_code=204,
+    summary="Archive a project",
+    dependencies=[Depends(require("project.admin"))],
+)
 async def archive_project(
     project_id: str,
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
@@ -162,6 +196,7 @@ async def archive_project(
     status_code=201,
     response_model=MemberResponse,
     summary="Add a member to a project",
+    dependencies=[Depends(require("project.admin"))],
 )
 async def add_member(
     project_id: str,
@@ -179,6 +214,7 @@ async def add_member(
     "/{project_id}/members",
     response_model=list[MemberResponse],
     summary="List project members",
+    dependencies=[Depends(require("project.read"))],
 )
 async def list_members(
     project_id: str,
@@ -195,6 +231,7 @@ async def list_members(
     "/{project_id}/members/{user_id}",
     status_code=204,
     summary="Remove a member from a project",
+    dependencies=[Depends(require("project.admin"))],
 )
 async def remove_member(
     project_id: str,

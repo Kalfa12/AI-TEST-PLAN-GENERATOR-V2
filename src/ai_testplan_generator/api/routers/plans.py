@@ -20,6 +20,7 @@ from fastapi.responses import Response
 from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_brain,
+    get_current_user,
     get_job_queue,
     get_plans,
     get_project_plans,
@@ -207,6 +208,7 @@ async def delete_plan(
     "/jobs/{job_id}/checkpoint",
     response_model=CheckpointResponse,
     summary="Fetch the paused state of an interactive run",
+    dependencies=[Depends(get_current_user)],
 )
 async def get_job_checkpoint(
     job_id: str,
@@ -235,6 +237,7 @@ async def get_job_checkpoint(
 @router.post(
     "/jobs/{job_id}/resume",
     summary="Resume a paused interactive run with accept / reprompt / abort",
+    dependencies=[Depends(get_current_user)],
 )
 async def resume_job(
     job_id: str,

@@ -1,6 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { TestPlanSummary, TestCaseSummary } from "@/lib/api/types";
+import type { TestPlan, TestPlanSummary, TestCaseSummary } from "@/lib/api/types";
 
 const MARGIN = 14;
 const PAGE_WIDTH = 210; // A4 portrait, mm
@@ -106,7 +106,18 @@ function field(c: Cursor, label: string, value: string): void {
   }
 }
 
-function pageFooter(doc: jsPDF, plan: TestPlanSummary): void {
+type ExportablePlan = TestPlanSummary | TestPlan;
+
+function planTestCaseCount(plan: ExportablePlan): number {
+  return plan.n_test_cases ?? plan.test_cases.length;
+}
+
+function planVersionLabel(plan: ExportablePlan): string | null {
+  if (!plan.version) return null;
+  return plan.version.startsWith("v") ? plan.version : `v${plan.version}`;
+}
+
+function pageFooter(doc: jsPDF, plan: ExportablePlan): void {
   const pageCount = doc.getNumberOfPages();
   for (let p = 1; p <= pageCount; p++) {
     doc.setPage(p);
@@ -114,8 +125,9 @@ function pageFooter(doc: jsPDF, plan: TestPlanSummary): void {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
     doc.setTextColor(140, 140, 140);
+    const version = planVersionLabel(plan);
     doc.text(
-      `${plan.title}${plan.version ? ` — v${plan.version}` : ""}`,
+      `${plan.title}${version ? ` - ${version}` : ""}`,
       MARGIN,
       pageHeight - 8,
     );
@@ -126,7 +138,7 @@ function pageFooter(doc: jsPDF, plan: TestPlanSummary): void {
 }
 
 export function exportPlanToPdf(
-  plan: TestPlanSummary,
+  plan: ExportablePlan,
   coverage?: Record<string, string[]>,
 ): void {
   const doc = new jsPDF({ unit: "mm", format: "a4" });
@@ -143,13 +155,13 @@ export function exportPlanToPdf(
   doc.setFontSize(10);
   doc.setTextColor(110, 110, 110);
   const metaLine = [
-    plan.version ? `Version ${plan.version}` : null,
+    planVersionLabel(plan) ? `Version ${planVersionLabel(plan)}` : null,
     plan.author ? `Author: ${plan.author}` : null,
-    `${plan.n_test_cases} test case${plan.n_test_cases === 1 ? "" : "s"}`,
+    `${planTestCaseCount(plan)} test case${planTestCaseCount(plan) === 1 ? "" : "s"}`,
     `Generated ${new Date().toLocaleDateString()}`,
   ]
     .filter(Boolean)
-    .join("    •    ");
+    .join("    |    ");
   doc.text(metaLine, MARGIN, c.y);
   c.y += 8;
   doc.setDrawColor(150, 150, 150);

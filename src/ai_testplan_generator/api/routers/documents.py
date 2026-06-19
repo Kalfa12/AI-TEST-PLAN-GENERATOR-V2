@@ -54,6 +54,50 @@ def _ext(filename: str) -> str:
     return Path(filename).suffix.lower()
 
 
+def _safe_filename(filename: str) -> str:
+    return Path(filename).name or "upload"
+
+
+def _attach_blob_metadata(doc: Document, *, blob_key: str, filename: str) -> Document:
+    ingest_source_uri = doc.source_uri
+    doc.source_uri = blob_key
+    doc.metadata = {
+        **doc.metadata,
+        "blob_key": blob_key,
+        "ingest_source_uri": ingest_source_uri,
+        "original_filename": filename,
+    }
+    return doc
+
+
+def _blob_key_for_document(doc: Document) -> str:
+    return doc.metadata.get("blob_key") or doc.source_uri
+
+
+def _document_list_item(d: Document, n_chunks: int) -> DocumentListItem:
+    return DocumentListItem(
+        id=d.id,
+        title=d.title,
+        kind=d.kind.value,
+        scope=d.scope,
+        n_chunks=n_chunks,
+        ingested_at=d.ingested_at.isoformat(),
+        source_uri=d.source_uri,
+    )
+
+
+async def _delete_document_artefacts(brain: Brain, doc_id: str) -> None:
+    brain.memory._store.documents.pop(doc_id, None)  # type: ignore[attr-defined]
+    chunks = list(brain.memory._store.chunks.values())  # type: ignore[attr-defined]
+    for ch in chunks:
+        if ch.document_id == doc_id:
+            brain.memory._store.chunks.pop(ch.id, None)  # type: ignore[attr-defined]
+    reqs = list(brain.memory._store.requirements.values())  # type: ignore[attr-defined]
+    for req in reqs:
+        if req.source_document_id == doc_id:
+            brain.memory._store.requirements.pop(req.id, None)  # type: ignore[attr-defined]
+
+
 async def _stream_to_blob(
     file: UploadFile,
     blob_store: BlobStore,
@@ -65,7 +109,7 @@ async def _stream_to_blob(
 
     Returns (blob_key, full_data, sha256_hex).
     """
-    filename = file.filename or "upload"
+    filename = _safe_filename(file.filename or "upload")
     sha = hashlib.sha256()
     chunks: list[bytes] = []
     while True:
@@ -90,7 +134,7 @@ async def _ingest_from_bytes(
     project_id: str,
     scope: str,
     sha256: str,  # noqa: ARG001
-    blob_uri: str,  # noqa: ARG001
+    blob_uri: str,
 ) -> tuple[Document, int, int, int]:
     """Write data to a temp file, run ingest pipeline, return counts."""
     ext = _ext(filename)
@@ -103,7 +147,11 @@ async def _ingest_from_bytes(
         else:
             kb = brain.project_kb(project_id)
             result = await kb.ingest(tmp_path, title=filename)
-        doc = result.document
+        doc = _attach_blob_metadata(
+            result.document,
+            blob_key=blob_uri,
+            filename=filename,
+        )
         return doc, len(result.sections), len(result.chunks), len(result.requirements)
     finally:
         tmp_path.unlink(missing_ok=True)
@@ -128,7 +176,7 @@ async def upload_document(
     settings: Annotated[Settings, Depends(get_settings)],
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
 ) -> DocumentUploadResponse | DocumentUploadAccepted:
-    filename = file.filename or "upload"
+    filename = _safe_filename(file.filename or "upload")
     if _ext(filename) not in _ALLOWED_EXT:
         raise ValidationError(
             f"Unsupported file type '{_ext(filename)}'. "
@@ -165,6 +213,7 @@ async def upload_document(
     "/projects/{project_id}/documents",
     response_model=DocumentListResponse,
     summary="List documents for a project",
+    dependencies=[Depends(require("document.read"))],
 )
 async def list_documents(
     project_id: str,
@@ -178,17 +227,7 @@ async def list_documents(
     items: list[DocumentListItem] = []
     for d in page:
         chunks = await brain.memory.get_chunks_for_document(d.id)
-        items.append(
-            DocumentListItem(
-                id=d.id,
-                title=d.title,
-                kind=d.kind.value,
-                scope=d.scope,
-                n_chunks=len(chunks),
-                ingested_at=d.ingested_at.isoformat(),
-                source_uri=d.source_uri,
-            )
-        )
+        items.append(_document_list_item(d, len(chunks)))
     return DocumentListResponse(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -196,6 +235,7 @@ async def list_documents(
     "/projects/{project_id}/documents/{doc_id}",
     response_model=Document,
     summary="Get document metadata",
+    dependencies=[Depends(require("document.read"))],
 )
 async def get_document(
     project_id: str,
@@ -212,6 +252,7 @@ async def get_document(
 @router.get(
     "/projects/{project_id}/documents/{doc_id}/download",
     summary="Download document bytes",
+    dependencies=[Depends(require("document.read"))],
 )
 async def download_document(
     project_id: str,
@@ -228,13 +269,14 @@ async def download_document(
     if doc is None:
         raise NotFoundError(f"Document '{doc_id}' not found.")
 
-    presigned = await blob_store.presign_get(doc.source_uri)
+    blob_key = _blob_key_for_document(doc)
+    presigned = await blob_store.presign_get(blob_key)
     if presigned:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=presigned)  # type: ignore[return-value]
 
     async def _stream() -> Any:
-        async for chunk in await blob_store.get_stream(doc.source_uri):
+        async for chunk in await blob_store.get_stream(blob_key):
             yield chunk
 
     return StreamingResponse(
@@ -267,20 +309,12 @@ async def delete_document(
 
     # Remove blob.
     try:
-        await blob_store.delete(doc.source_uri)
+        await blob_store.delete(_blob_key_for_document(doc))
     except Exception:
         pass  # blob may already be gone
 
     # Remove from in-memory stores.
-    brain.memory._store.documents.pop(doc_id, None)  # type: ignore[attr-defined]
-    chunks = list(brain.memory._store.chunks.values())  # type: ignore[attr-defined]
-    for ch in chunks:
-        if ch.document_id == doc_id:
-            brain.memory._store.chunks.pop(ch.id, None)  # type: ignore[attr-defined]
-    reqs = list(brain.memory._store.requirements.values())  # type: ignore[attr-defined]
-    for req in reqs:
-        if req.source_document_id == doc_id:
-            brain.memory._store.requirements.pop(req.id, None)  # type: ignore[attr-defined]
+    await _delete_document_artefacts(brain, doc_id)
 
     _log.info("doc_deleted", project_id=project_id, doc_id=doc_id)
 
@@ -303,7 +337,7 @@ async def upload_general_document(
     settings: Annotated[Settings, Depends(get_settings)],
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
 ) -> DocumentUploadResponse | DocumentUploadAccepted:
-    filename = file.filename or "upload"
+    filename = _safe_filename(file.filename or "upload")
     if _ext(filename) not in _ALLOWED_EXT:
         raise ValidationError(
             f"Unsupported file type '{_ext(filename)}'. "
@@ -332,3 +366,55 @@ async def upload_general_document(
     return DocumentUploadResponse(
         document=doc, n_sections=n_sections, n_chunks=n_chunks, n_requirements=n_reqs
     )
+
+
+@router.get(
+    "/general/documents",
+    response_model=DocumentListResponse,
+    summary="List documents in the general knowledge base",
+    dependencies=[Depends(require("general_kb.read"))],
+)
+async def list_general_documents(
+    brain: Annotated[Brain, Depends(get_brain)],
+    limit: Annotated[int, Query(ge=1, le=200)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> DocumentListResponse:
+    docs = [
+        d
+        for d in await brain.memory.get_documents_for_project(None)
+        if d.scope == "general"
+    ]
+    total = len(docs)
+    page = docs[offset : offset + limit]
+    items: list[DocumentListItem] = []
+    for d in page:
+        chunks = await brain.memory.get_chunks_for_document(d.id)
+        items.append(_document_list_item(d, len(chunks)))
+    return DocumentListResponse(items=items, total=total, limit=limit, offset=offset)
+
+
+@router.delete(
+    "/general/documents/{doc_id}",
+    status_code=204,
+    summary="Delete a general knowledge-base document",
+    dependencies=[Depends(require("general_kb.write"))],
+)
+async def delete_general_document(
+    doc_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
+    blob_store: Annotated[BlobStore, Depends(get_blob_store)],
+) -> None:
+    docs = [
+        d
+        for d in await brain.memory.get_documents_for_project(None)
+        if d.scope == "general"
+    ]
+    doc = next((d for d in docs if d.id == doc_id), None)
+    if doc is None:
+        raise NotFoundError(f"General document '{doc_id}' not found.")
+    try:
+        await blob_store.delete(_blob_key_for_document(doc))
+    except Exception:
+        pass
+    await _delete_document_artefacts(brain, doc_id)
+    _log.info("general_doc_deleted", doc_id=doc_id)

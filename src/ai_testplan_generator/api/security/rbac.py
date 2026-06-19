@@ -27,11 +27,13 @@ PERMISSIONS: dict[str, set[str]] = {
     "project.read":    {"owner", "editor", "reviewer", "viewer"},
     "project.write":   {"owner", "editor"},
     "project.admin":   {"owner"},
+    "document.read":   {"owner", "editor", "reviewer", "viewer"},
     "document.upload": {"owner", "editor"},
     "document.delete": {"owner", "editor"},
     "plan.generate":   {"owner", "editor"},
     "plan.read":       {"owner", "editor", "reviewer", "viewer"},
     "plan.approve":    {"owner", "reviewer"},
+    "general_kb.read": {"admin"},
     "general_kb.write": {"admin"},
 }
 
@@ -58,12 +60,17 @@ def require(permission: str) -> Callable[..., Awaitable[None]]:
             raise AuthError(f"Forbidden: '{permission}' requires a project context.")
 
         member = await project_repo.get_member(project_id, current_user.id)
+        role_value: str | None = member.role.value if member else None
         if member is None:
-            raise AuthError(f"Forbidden: not a member of project '{project_id}'.")
+            project = await project_repo.get_project(project_id)
+            if project is not None and project.owner_id == current_user.id:
+                role_value = "owner"
+            else:
+                raise AuthError(f"Forbidden: not a member of project '{project_id}'.")
 
-        if member.role.value not in allowed_roles:
+        if role_value not in allowed_roles:
             raise AuthError(
-                f"Forbidden: role '{member.role.value}' does not grant '{permission}'."
+                f"Forbidden: role '{role_value}' does not grant '{permission}'."
             )
 
     return _dep

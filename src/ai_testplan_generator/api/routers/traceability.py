@@ -14,8 +14,9 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.api.deps import get_brain, get_plans, get_project_plans
+from ai_testplan_generator.api.deps import get_brain, get_current_user, get_plans, get_project_plans
 from ai_testplan_generator.api.errors import NotFoundError
+from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 
@@ -89,6 +90,7 @@ def _node_exists(node_id: str, brain: Brain) -> bool:
     "/trace/{artefact_id}/ancestors",
     response_model=AncestorsResponse,
     summary="Upstream ancestors for an artefact",
+    dependencies=[Depends(get_current_user)],
 )
 async def trace_ancestors(
     artefact_id: str,
@@ -108,6 +110,7 @@ async def trace_ancestors(
     "/trace/{artefact_id}",
     response_model=LineageResponse,
     summary="Full lineage for an artefact (ancestors + descendants)",
+    dependencies=[Depends(get_current_user)],
 )
 async def trace_lineage(
     artefact_id: str,
@@ -148,6 +151,7 @@ async def trace_lineage(
     "/projects/{project_id}/coverage",
     response_model=dict[str, list[str]],
     summary="Full project coverage matrix (requirement → test cases)",
+    dependencies=[Depends(require("project.read"))],
 )
 async def project_coverage(
     project_id: str,
@@ -162,6 +166,7 @@ async def project_coverage(
     "/projects/{project_id}/gaps",
     response_model=GapsResponse,
     summary="Requirements with zero covering test cases",
+    dependencies=[Depends(require("project.read"))],
 )
 async def project_gaps(
     project_id: str,

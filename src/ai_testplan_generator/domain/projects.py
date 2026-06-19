@@ -137,6 +137,29 @@ class ProjectRepository:
             rows = await cur.fetchall()
         return [_row_to_project(r) for r in rows]
 
+    async def list_projects_for_user(
+        self,
+        user_id: str,
+        *,
+        include_archived: bool = False,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Project]:
+        sql = (
+            "SELECT p.id,p.name,p.description,p.owner_id,p.created_at,p.archived_at "
+            "FROM projects p "
+            "JOIN project_members pm ON pm.project_id = p.id "
+            "WHERE pm.user_id=?"
+        )
+        params: tuple[Any, ...] = (user_id,)
+        if not include_archived:
+            sql += " AND p.archived_at IS NULL"
+        sql += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+        params = (*params, limit, offset)
+        async with self._db().execute(sql, params) as cur:
+            rows = await cur.fetchall()
+        return [_row_to_project(r) for r in rows]
+
     async def update_project(
         self,
         project_id: str,

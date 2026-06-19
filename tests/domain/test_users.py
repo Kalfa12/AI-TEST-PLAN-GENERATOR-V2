@@ -34,6 +34,18 @@ async def test_create_and_get_user(repo: UserRepository) -> None:
     assert by_email.id == user.id
 
 
+async def test_admin_flag_persists(repo: UserRepository) -> None:
+    user = await repo.create_user(
+        email="admin@example.com",
+        display_name="Admin",
+        is_admin=True,
+    )
+
+    fetched = await repo.get_by_id(user.id)
+    assert fetched is not None
+    assert fetched.is_admin
+
+
 async def test_get_nonexistent_user(repo: UserRepository) -> None:
     assert await repo.get_by_id("usr_doesnotexist") is None
     assert await repo.get_by_email("nobody@example.com") is None

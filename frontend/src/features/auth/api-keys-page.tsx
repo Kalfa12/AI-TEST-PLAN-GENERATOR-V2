@@ -78,7 +78,7 @@ export function ApiKeysPage() {
         <h1 className="text-2xl font-semibold">API keys</h1>
         <p className="text-sm text-muted-foreground mt-1">
           Personal access tokens for the REST API. Use them in the
-          <code className="px-1 mx-1 bg-muted rounded text-xs">Authorization: Bearer …</code>
+          <code className="px-1 mx-1 bg-muted rounded text-xs">X-Api-Key: …</code>
           header for service-to-service calls.
         </p>
       </div>

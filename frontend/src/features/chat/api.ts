@@ -55,8 +55,6 @@ export function openChatStream(sessionId: string): WebSocket {
   const tokens = readTokens();
   const params = new URLSearchParams();
   if (tokens) params.set("token", tokens.access);
-  // Note: backend WS does not currently parse the token query param;
-  // it is included for forward compatibility with token-aware proxies.
   const url = `${wsBaseURL}/chat/${encodeURIComponent(sessionId)}/stream${
     params.toString() ? `?${params}` : ""
   }`;
