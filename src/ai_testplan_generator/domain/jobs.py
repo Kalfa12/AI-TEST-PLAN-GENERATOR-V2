@@ -127,7 +127,7 @@ class JobRepository:
     async def get_job(self, job_id: str) -> Job | None:
         async with self._db().execute(
             """
-            SELECT id, kind, status, session_id, result_json, error,
+            SELECT id, kind, status, session_id, project_id, result_json, error,
                    created_at, updated_at, paused_at
             FROM jobs
             WHERE id = ?
@@ -142,12 +142,13 @@ class JobRepository:
             kind=row[1],
             status=JobStatus(row[2]),
             session_id=row[3],
-            result=json.loads(row[4]) if row[4] else None,
-            error=row[5],
-            created_at=datetime.fromisoformat(row[6]),
-            updated_at=datetime.fromisoformat(row[7]),
+            project_id=row[4],
+            result=json.loads(row[5]) if row[5] else None,
+            error=row[6],
+            created_at=datetime.fromisoformat(row[7]),
+            updated_at=datetime.fromisoformat(row[8]),
         )
-        job.paused_at = row[8]
+        job.paused_at = row[9]
         return job
 
     async def save_checkpoint(

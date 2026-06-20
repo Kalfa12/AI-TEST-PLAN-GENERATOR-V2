@@ -183,3 +183,36 @@ async def test_refresh_token(auth_client: AsyncClient) -> None:
     )
     assert r.status_code == 200
     assert "access_token" in r.json()
+
+
+async def test_logout_revokes_refresh_and_access_tokens(
+    auth_client: AsyncClient,
+) -> None:
+    login = await auth_client.post(
+        "/auth/login",
+        json={"email": "admin@example.com", "password": "correct-password"},
+    )
+    tokens = login.json()
+
+    logout = await auth_client.post(
+        "/auth/logout",
+        json={
+            "refresh_token": tokens["refresh_token"],
+            "access_token": tokens["access_token"],
+        },
+    )
+    assert logout.status_code == 204
+
+    refresh = await auth_client.post(
+        "/auth/refresh",
+        json={"refresh_token": tokens["refresh_token"]},
+    )
+    assert refresh.status_code == 401
+    assert refresh.json()["error_code"] == "AUTH_ERROR"
+
+    me = await auth_client.get(
+        "/auth/me",
+        headers={"Authorization": f"Bearer {tokens['access_token']}"},
+    )
+    assert me.status_code == 401
+    assert me.json()["error_code"] == "AUTH_ERROR"

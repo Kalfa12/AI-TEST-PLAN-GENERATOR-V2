@@ -8,6 +8,7 @@ import aiosqlite
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
+from fastapi import Request
 
 from ai_testplan_generator.api.app import create_app
 from ai_testplan_generator.api.deps import (
@@ -52,13 +53,17 @@ async def audit_client(mock_llm, audit_settings, tmp_path):  # type: ignore[no-u
     _user_repo = await UserRepository.create(db_path=str(tmp_path / "app.db"))
     stub_user = User(id="usr_audit0001", email="a@test.local", display_name="A", is_admin=True)
 
+    def current_user_override(request: Request) -> User:
+        request.state.current_user = stub_user
+        return stub_user
+
     app = create_app(settings=audit_settings)
     app.dependency_overrides[get_brain] = lambda: test_brain
     app.dependency_overrides[get_settings] = lambda: audit_settings
     app.dependency_overrides[get_blob_store] = lambda: blob_store
     app.dependency_overrides[get_project_repo] = lambda: project_repo
     app.dependency_overrides[get_user_repo] = lambda: _user_repo
-    app.dependency_overrides[get_current_user] = lambda: stub_user
+    app.dependency_overrides[get_current_user] = current_user_override
     app.dependency_overrides[get_event_broker] = lambda: InMemoryEventBroker()
     app.dependency_overrides[get_jobs] = lambda: {}
     app.dependency_overrides[get_plans] = lambda: {}
@@ -88,6 +93,23 @@ async def _count_audit_rows(db_path: str, method_path_prefix: str) -> int:
         ) as cur:
             row = await cur.fetchone()
     return int(row[0]) if row else 0
+
+
+async def _latest_audit_row(db_path: str, action_like: str) -> dict[str, str | None]:
+    async with aiosqlite.connect(db_path) as conn:
+        async with conn.execute(
+            """
+            SELECT user_id, project_id, action
+            FROM audit_events
+            WHERE action LIKE ?
+            ORDER BY id DESC
+            LIMIT 1
+            """,
+            (f"%{action_like}%",),
+        ) as cur:
+            row = await cur.fetchone()
+    assert row is not None
+    return {"user_id": row[0], "project_id": row[1], "action": row[2]}
 
 
 async def test_post_creates_audit_row(audit_client) -> None:  # type: ignore[no-untyped-def]
@@ -126,3 +148,7 @@ async def test_delete_creates_audit_row(audit_client) -> None:  # type: ignore[n
 
     count = await _count_audit_rows(db_path, "DELETE")
     assert count >= 1
+
+    row = await _latest_audit_row(db_path, f"DELETE:/projects/{project_id}")
+    assert row["user_id"] == "usr_audit0001"
+    assert row["project_id"] == project_id

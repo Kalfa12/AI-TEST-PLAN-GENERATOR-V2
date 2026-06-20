@@ -37,6 +37,7 @@ async def client(mock_llm, tmp_path):  # type: ignore[no-untyped-def]
         BLOB_STORE_BACKEND="local",
         BLOB_STORE_LOCAL_ROOT=str(tmp_path / "blobs"),
         APP_DB_PATH=str(tmp_path / "app.db"),
+        API_DEBUG=True,
     )
     test_brain = Brain.build(llm=mock_llm, settings=settings)  # type: ignore[arg-type]
     blob_store = LocalFilesystemBlobStore(root=str(tmp_path / "blobs"))

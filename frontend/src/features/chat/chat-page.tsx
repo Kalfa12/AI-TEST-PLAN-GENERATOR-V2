@@ -81,7 +81,7 @@ export function ChatPage() {
     let cancelled = false;
     (async () => {
       try {
-        const hist = await getChatHistory(sessionId);
+        const hist = await getChatHistory(sessionId, projectId);
         if (cancelled) return;
         const restored: Message[] = hist.events
           .filter((e) => e.kind === "message" && (e.actor === "user" || e.actor === "assistant"))
@@ -98,7 +98,7 @@ export function ChatPage() {
     return () => {
       cancelled = true;
     };
-  }, [sessionId]);
+  }, [projectId, sessionId]);
 
   const ensureWs = (): WebSocket => {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {

@@ -68,6 +68,7 @@ class JobQueue:
                 id=job_id,
                 kind=task_name,
                 session_id=kwargs.get("session_id"),
+                project_id=kwargs.get("project_id"),
             )
             await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
         return job_id
@@ -145,6 +146,10 @@ class JobQueue:
             updated_at=now,
         )
         if self._job_repo is not None:
+            stored = await self._job_repo.get_job(job_id)
+            if stored is not None:
+                job.project_id = stored.project_id
+                job.session_id = stored.session_id
             await self._job_repo.save_job(job)
         return job
 
@@ -257,7 +262,11 @@ class FakeJobQueue:
             "delete_project_artefacts": delete_project_artefacts,
         }
 
-        job = Job(kind=task_name, session_id=kwargs.get("session_id"))
+        job = Job(
+            kind=task_name,
+            session_id=kwargs.get("session_id"),
+            project_id=kwargs.get("project_id"),
+        )
         self._jobs[job.id] = job
         if self._job_repo is not None:
             await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))

@@ -41,6 +41,16 @@ CREATE TABLE IF NOT EXISTS api_keys (
     revoked_at      TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_id);
+
+CREATE TABLE IF NOT EXISTS token_revocations (
+    jti             TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL,
+    scope           TEXT NOT NULL,
+    expires_at      TEXT NOT NULL,
+    revoked_at      TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_token_revocations_user ON token_revocations(user_id);
+CREATE INDEX IF NOT EXISTS idx_token_revocations_expires ON token_revocations(expires_at);
 """
 
 
@@ -92,6 +102,25 @@ class UserRepository:
             await self._db().execute(
                 "ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0"
             )
+        await self._db().execute(
+            """
+            CREATE TABLE IF NOT EXISTS token_revocations (
+                jti             TEXT PRIMARY KEY,
+                user_id         TEXT NOT NULL,
+                scope           TEXT NOT NULL,
+                expires_at      TEXT NOT NULL,
+                revoked_at      TEXT NOT NULL
+            )
+            """
+        )
+        await self._db().execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_revocations_user "
+            "ON token_revocations(user_id)"
+        )
+        await self._db().execute(
+            "CREATE INDEX IF NOT EXISTS idx_token_revocations_expires "
+            "ON token_revocations(expires_at)"
+        )
 
     def _db(self) -> aiosqlite.Connection:
         if self._conn is None:
@@ -206,6 +235,50 @@ class UserRepository:
         await self._db().execute(
             "UPDATE api_keys SET last_used_at=? WHERE id=?",
             (ts, key_id),
+        )
+        await self._db().commit()
+
+    # ------------------------------------------------------------------
+    # JWT token revocation
+    # ------------------------------------------------------------------
+
+    async def revoke_token(
+        self,
+        *,
+        jti: str,
+        user_id: str,
+        scope: str,
+        expires_at: datetime,
+    ) -> None:
+        await self.purge_expired_token_revocations()
+        await self._db().execute(
+            """
+            INSERT OR REPLACE INTO token_revocations
+                (jti, user_id, scope, expires_at, revoked_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (
+                jti,
+                user_id,
+                scope,
+                expires_at.isoformat(),
+                datetime.now(timezone.utc).isoformat(),
+            ),
+        )
+        await self._db().commit()
+
+    async def is_token_revoked(self, jti: str) -> bool:
+        await self.purge_expired_token_revocations()
+        async with self._db().execute(
+            "SELECT 1 FROM token_revocations WHERE jti=? LIMIT 1",
+            (jti,),
+        ) as cur:
+            return await cur.fetchone() is not None
+
+    async def purge_expired_token_revocations(self) -> None:
+        await self._db().execute(
+            "DELETE FROM token_revocations WHERE expires_at <= ?",
+            (datetime.now(timezone.utc).isoformat(),),
         )
         await self._db().commit()
 

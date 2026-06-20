@@ -100,6 +100,7 @@ async def test_get_metrics_endpoint_returns_200(tmp_path: "pytest.Path") -> None
         CROSSDOC_GRAPH_BACKEND="networkx",
         APP_DB_PATH=str(tmp_path / "app.db"),
         METRICS_ENABLED=True,
+        API_DEBUG=True,
     )
 
     app = create_app(settings=settings)
@@ -128,6 +129,7 @@ async def test_get_metrics_returns_404_when_disabled(tmp_path: "pytest.Path") ->
         CROSSDOC_GRAPH_BACKEND="networkx",
         APP_DB_PATH=str(tmp_path / "app.db"),
         METRICS_ENABLED=False,
+        API_DEBUG=True,
     )
 
     app = create_app(settings=settings)

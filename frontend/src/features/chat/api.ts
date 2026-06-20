@@ -26,11 +26,12 @@ export interface ChatHistoryResponse {
 
 export async function getChatHistory(
   sessionId: string,
+  projectId?: string,
   limit = 50,
 ): Promise<ChatHistoryResponse> {
   const res = await http.get<ChatHistoryResponse>(
     `/chat/${encodeURIComponent(sessionId)}/history`,
-    { params: { limit } },
+    { params: { limit, project_id: projectId } },
   );
   return res.data;
 }

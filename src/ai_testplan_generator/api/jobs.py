@@ -27,6 +27,7 @@ class Job:
     kind: str = ""
     status: JobStatus = JobStatus.QUEUED
     session_id: str | None = None
+    project_id: str | None = None
     result: dict[str, Any] | None = None
     error: str | None = None
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

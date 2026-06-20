@@ -31,6 +31,7 @@ from ai_testplan_generator.api.schemas.chat import (
 from ai_testplan_generator.domain.chat_actions import apply_pending_chat_action
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
+from ai_testplan_generator.api.security.projects import ensure_project_access
 from ai_testplan_generator.llm.base import ChatMessage
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.pipelines.interactive import InteractivePipeline
@@ -56,15 +57,13 @@ async def _ensure_project_chat_access(
     current_user: User,
     project_repo: ProjectRepository,
 ) -> None:
-    if not project_id or current_user.is_admin:
+    if project_id is None and current_user.is_admin:
         return
-    member = await project_repo.get_member(project_id, current_user.id)
-    if member is not None:
-        return
-    project = await project_repo.get_project(project_id)
-    if project is not None and project.owner_id == current_user.id:
-        return
-    raise AuthError(f"Forbidden: not a member of project '{project_id}'.")
+    await ensure_project_access(
+        project_id=project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+    )
 
 
 @router.post("/chat", response_model=ChatReply, summary="Send a chat message")
@@ -99,10 +98,16 @@ async def chat(
 )
 async def chat_history(
     session_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],  # noqa: ARG001
+    current_user: Annotated[User, Depends(get_current_user)],
     brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    project_id: str | None = None,
     limit: int = 50,
 ) -> HistoryResponse:
+    if project_id is None and not current_user.is_admin:
+        raise AuthError("Forbidden: project_id is required to read chat history.")
+    if project_id is not None:
+        await _ensure_project_chat_access(project_id, current_user, project_repo)
     events = await brain.memory.episodic.recent(session_id, limit=limit)
     return HistoryResponse.from_events(session_id, events)
 

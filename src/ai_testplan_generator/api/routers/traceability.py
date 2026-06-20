@@ -14,10 +14,16 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.api.deps import get_brain, get_current_user, get_plans, get_project_plans
+from ai_testplan_generator.api.deps import (
+    get_brain,
+    get_current_user,
+    get_project_repo,
+)
 from ai_testplan_generator.api.errors import NotFoundError
+from ai_testplan_generator.api.security.projects import ensure_project_access
 from ai_testplan_generator.api.security.rbac import require
-from ai_testplan_generator.models import TestPlan
+from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.pipelines.brain import Brain
 
 _log = structlog.get_logger(__name__)
@@ -82,6 +88,41 @@ def _node_exists(node_id: str, brain: Brain) -> bool:
     return True  # Non-NetworkX graphs: assume existence
 
 
+async def _ensure_trace_access(
+    *,
+    artefact_id: str,
+    project_id: str | None,
+    current_user: User,
+    project_repo: ProjectRepository,
+    brain: Brain,
+) -> None:
+    if project_id is None and current_user.is_admin:
+        return
+    await ensure_project_access(
+        project_id=project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+    )
+    if project_id is None:
+        return
+
+    from ai_testplan_generator.memory.cross_document import InMemoryCrossDocumentGraph
+
+    graph = brain.memory.graph
+    if not isinstance(graph, InMemoryCrossDocumentGraph):
+        return
+    related_ids = {artefact_id, *graph.ancestors(artefact_id, depth=10)}
+    project_ids = {
+        attrs.get("project_id")
+        for node_id, attrs in graph._g.nodes(data=True)
+        if node_id in related_ids and attrs.get("project_id") is not None
+    }
+    if project_ids and project_id not in project_ids:
+        raise NotFoundError(f"Artefact '{artefact_id}' not found in project '{project_id}'.")
+    if not project_ids:
+        raise NotFoundError(f"Artefact '{artefact_id}' has no project lineage.")
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -90,15 +131,24 @@ def _node_exists(node_id: str, brain: Brain) -> bool:
     "/trace/{artefact_id}/ancestors",
     response_model=AncestorsResponse,
     summary="Upstream ancestors for an artefact",
-    dependencies=[Depends(get_current_user)],
 )
 async def trace_ancestors(
     artefact_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
     depth: Annotated[int, Query(ge=1, le=10)] = 3,
+    project_id: str | None = None,
 ) -> AncestorsResponse:
     if not _node_exists(artefact_id, brain):
         raise NotFoundError(f"Artefact '{artefact_id}' not found in the traceability graph.")
+    await _ensure_trace_access(
+        artefact_id=artefact_id,
+        project_id=project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+        brain=brain,
+    )
     ancestor_ids = brain.memory.graph.ancestors(artefact_id, depth=depth)
     return AncestorsResponse(
         artefact_id=artefact_id,
@@ -110,15 +160,24 @@ async def trace_ancestors(
     "/trace/{artefact_id}",
     response_model=LineageResponse,
     summary="Full lineage for an artefact (ancestors + descendants)",
-    dependencies=[Depends(get_current_user)],
 )
 async def trace_lineage(
     artefact_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
     depth: Annotated[int, Query(ge=1, le=10)] = 3,
+    project_id: str | None = None,
 ) -> LineageResponse:
     if not _node_exists(artefact_id, brain):
         raise NotFoundError(f"Artefact '{artefact_id}' not found.")
+    await _ensure_trace_access(
+        artefact_id=artefact_id,
+        project_id=project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+        brain=brain,
+    )
 
     root = _node_from_graph(artefact_id, brain)
     ancestor_ids = brain.memory.graph.ancestors(artefact_id, depth=depth)

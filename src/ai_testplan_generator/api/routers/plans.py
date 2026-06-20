@@ -25,8 +25,10 @@ from ai_testplan_generator.api.deps import (
     get_job_repo,
     get_job_queue,
     get_plans,
+    get_project_repo,
 )
 from ai_testplan_generator.api.errors import NotFoundError, ValidationError
+from ai_testplan_generator.api.security.projects import ensure_project_access
 from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.api.schemas.plans import (
     CheckpointResponse,
@@ -45,6 +47,8 @@ from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
 from ai_testplan_generator.agents.traceability import TraceabilityAgent
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
 from ai_testplan_generator.domain.jobs import JobRepository
+from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
@@ -52,6 +56,19 @@ from ai_testplan_generator.storage.base import BlobStore
 _log = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["plans"])
+
+
+async def _get_project_plan(
+    *,
+    project_id: str,
+    plan_id: str,
+    brain: Brain,
+    plans: dict[str, TestPlan],
+) -> TestPlan:
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
+    if plan is None or plan.project_id != project_id:
+        raise NotFoundError(f"Plan '{plan_id}' not found in project '{project_id}'.")
+    return plan
 
 
 # ---------------------------------------------------------------------------
@@ -118,8 +135,11 @@ async def export_plan_json(
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
 ) -> Response:
-    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
-    if plan is None:
+    try:
+        plan = await _get_project_plan(
+            project_id=project_id, plan_id=plan_id, brain=brain, plans=plans
+        )
+    except NotFoundError:
         key = f"projects/{project_id}/plans/{plan_id}.json"
         try:
             raw = await blob_store.get(key)
@@ -129,7 +149,7 @@ async def export_plan_json(
                 headers={"Content-Disposition": f'attachment; filename="{plan_id}.json"'},
             )
         except Exception:
-            raise NotFoundError(f"Plan '{plan_id}' not found.")
+            raise
     return Response(
         content=plan.model_dump_json().encode(),
         media_type="application/json",
@@ -149,9 +169,9 @@ async def plan_coverage(
     brain: Annotated[Brain, Depends(get_brain)],
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
 ) -> CoverageMatrixResponse:
-    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
-    if plan is None:
-        raise NotFoundError(f"Plan '{plan_id}' not found.")
+    plan = await _get_project_plan(
+        project_id=project_id, plan_id=plan_id, brain=brain, plans=plans
+    )
     req_ids = list(plan.coverage_matrix.keys())
     if not req_ids:
         req_ids = list({rid for tc in plan.test_cases for rid in tc.requirement_ids})
@@ -177,9 +197,9 @@ async def generate_requirement_test_case(
     defects: Annotated[dict[str, Any], Depends(get_defects)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
 ) -> GenerateRequirementTestCaseResponse:
-    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
-    if plan is None:
-        raise NotFoundError(f"Plan '{plan_id}' not found.")
+    plan = await _get_project_plan(
+        project_id=project_id, plan_id=plan_id, brain=brain, plans=plans
+    )
     if plan.project_id != project_id:
         raise NotFoundError(f"Plan '{plan_id}' not found in project '{project_id}'.")
 
@@ -261,9 +281,9 @@ async def get_plan(
     plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
     detail: Annotated[str | None, Query()] = None,
 ) -> TestPlan | TestPlanSummary:
-    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
-    if plan is None:
-        raise NotFoundError(f"Plan '{plan_id}' not found.")
+    plan = await _get_project_plan(
+        project_id=project_id, plan_id=plan_id, brain=brain, plans=plans
+    )
     if detail == "summary":
         return TestPlanSummary.from_plan(plan)
     return plan
@@ -303,17 +323,24 @@ async def delete_plan(
     "/jobs/{job_id}/checkpoint",
     response_model=CheckpointResponse,
     summary="Fetch the paused state of an interactive run",
-    dependencies=[Depends(get_current_user)],
 )
 async def get_job_checkpoint(
     job_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
     job_repo: Annotated[JobRepository, Depends(get_job_repo)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> CheckpointResponse:
     from ai_testplan_generator.api.errors import NotFoundError, ValidationError
 
     stored = await job_repo.get_checkpoint(job_id)
     if stored is not None:
+        stored_job = await job_repo.get_job(job_id)
+        await ensure_project_access(
+            project_id=stored_job.project_id if stored_job else None,
+            current_user=current_user,
+            project_repo=project_repo,
+        )
         return CheckpointResponse(
             job_id=stored.job_id,
             paused_at=stored.paused_at,
@@ -321,6 +348,11 @@ async def get_job_checkpoint(
         )
 
     job = await job_queue.get_status(job_id)
+    await ensure_project_access(
+        project_id=job.project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+    )
     paused_at = getattr(job, "paused_at", None)
     paused_state = getattr(job, "paused_state", None)
 
@@ -341,13 +373,14 @@ async def get_job_checkpoint(
 @router.post(
     "/jobs/{job_id}/resume",
     summary="Resume a paused interactive run with accept / reprompt / abort",
-    dependencies=[Depends(get_current_user)],
 )
 async def resume_job(
     job_id: str,
     body: ResumeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
     job_repo: Annotated[JobRepository, Depends(get_job_repo)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> Any:
     from ai_testplan_generator.api.errors import ValidationError
     from ai_testplan_generator.api.routers.events import JobStatusResponse
@@ -365,6 +398,15 @@ async def resume_job(
 
     checkpoint = await job_repo.get_checkpoint(job_id)
     job = await job_queue.get_status(job_id)
+    project_id = job.project_id
+    if project_id is None and checkpoint is not None:
+        stored_job = await job_repo.get_job(job_id)
+        project_id = stored_job.project_id if stored_job else None
+    await ensure_project_access(
+        project_id=project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+    )
     if checkpoint is None and getattr(job, "paused_at", None) is None:
         raise ValidationError(
             f"Job '{job_id}' is not currently paused at a checkpoint."

@@ -14,6 +14,7 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_JWT_SECRET = "changeme-local-dev-only"
 
 
 class ModelTier(BaseSettings):
@@ -94,7 +95,7 @@ class Settings(BaseSettings):
     # Path to PEM-encoded RSA public key (RS256 mode). Leave blank to use HS256.
     jwt_public_key_path: str | None = Field(default=None, alias="JWT_PUBLIC_KEY_PATH")
     # Shared secret for HS256 fallback (local dev only). Must be set when no key paths given.
-    jwt_secret: str = Field(default="changeme-local-dev-only", alias="JWT_SECRET")
+    jwt_secret: str = Field(default=DEFAULT_JWT_SECRET, alias="JWT_SECRET")
     # Access token lifetime in seconds (default 15 min).
     jwt_access_token_ttl_seconds: int = Field(default=900, alias="JWT_ACCESS_TOKEN_TTL_SECONDS")
     # Refresh token lifetime in seconds (default 14 days).
@@ -136,6 +137,25 @@ class Settings(BaseSettings):
     @property
     def models(self) -> ModelTier:
         return ModelTier()  # re-reads env; keeps tiers independently overridable
+
+    def validate_production_security(self) -> None:
+        """Reject unsafe production-like API settings.
+
+        Local/dev tests set API_DEBUG=true. When debug is false, the app should
+        not start with browser-wide CORS or the local-development JWT secret.
+        """
+        if self.api_debug:
+            return
+        if "*" in self.api_cors_origins:
+            raise ValueError(
+                "API_CORS_ORIGINS cannot contain '*' when API_DEBUG=false."
+            )
+        if not self.jwt_private_key_path:
+            if self.jwt_secret == DEFAULT_JWT_SECRET or len(self.jwt_secret) < 32:
+                raise ValueError(
+                    "JWT_SECRET must be a non-default secret of at least 32 "
+                    "characters when API_DEBUG=false."
+                )
 
 
 @lru_cache(maxsize=1)

@@ -2,7 +2,7 @@
 
 POST   /auth/login              email + password → access + refresh tokens
 POST   /auth/refresh            refresh token → new access token
-POST   /auth/logout             revoke refresh token (client-side invalidation)
+POST   /auth/logout             revoke refresh/access tokens
 POST   /auth/api-keys           create API key for the current user
 GET    /auth/api-keys           list API keys for the current user
 DELETE /auth/api-keys/{id}      revoke an API key
@@ -24,6 +24,7 @@ from ai_testplan_generator.api.schemas.auth import (
     ApiKeyResponse,
     CreateApiKeyRequest,
     LoginRequest,
+    LogoutRequest,
     MeResponse,
     RefreshRequest,
     TokenResponse,
@@ -36,6 +37,7 @@ from ai_testplan_generator.api.security.jwt import (
     decode_token,
     encode_access_token,
     encode_refresh_token,
+    token_expires_at,
 )
 from ai_testplan_generator.api.security.password import verify_password
 from ai_testplan_generator.config import Settings
@@ -79,6 +81,11 @@ async def refresh(
     payload = decode_token(body.refresh_token, settings)
     if payload.get("scope") != "refresh":
         raise AuthError("Token is not a refresh token.")
+    token_id = str(payload.get("jti", ""))
+    if not token_id:
+        raise AuthError("Token is missing an identifier.")
+    if await user_repo.is_token_revoked(token_id):
+        raise AuthError("Token has been revoked.")
     user_id = str(payload.get("sub", ""))
     user = await user_repo.get_by_id(user_id)
     if user is None or not user.is_active:
@@ -86,11 +93,39 @@ async def refresh(
     return AccessTokenResponse(access_token=encode_access_token(user_id, settings))
 
 
-@router.post("/logout", status_code=204, summary="Logout (client-side token invalidation)")
-async def logout() -> None:
-    # Stateless JWTs are invalidated client-side. A production system would
-    # maintain a token revocation list (e.g., Redis TTL store) here.
-    pass
+@router.post("/logout", status_code=204, summary="Logout and revoke JWT tokens")
+async def logout(
+    body: LogoutRequest,
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> None:
+    refresh_payload = decode_token(body.refresh_token, settings)
+    if refresh_payload.get("scope") != "refresh":
+        raise AuthError("Token is not a refresh token.")
+    await _revoke_payload(user_repo, refresh_payload)
+
+    if body.access_token:
+        access_payload = decode_token(body.access_token, settings)
+        if access_payload.get("scope") != "access":
+            raise AuthError("Token is not an access token.")
+        await _revoke_payload(user_repo, access_payload)
+
+
+async def _revoke_payload(
+    user_repo: UserRepository,
+    payload: dict[str, object],
+) -> None:
+    token_id = str(payload.get("jti", ""))
+    user_id = str(payload.get("sub", ""))
+    scope = str(payload.get("scope", ""))
+    if not token_id or not user_id or not scope:
+        raise AuthError("Token is missing revocation metadata.")
+    await user_repo.revoke_token(
+        jti=token_id,
+        user_id=user_id,
+        scope=scope,
+        expires_at=token_expires_at(payload),
+    )
 
 
 # ---------------------------------------------------------------------------

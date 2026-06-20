@@ -196,6 +196,7 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
         the factory reads from environment / .env via ``get_settings()``.
     """
     cfg = settings or _get_settings()
+    cfg.validate_production_security()
 
     # Configure structlog before any log calls.
     from ai_testplan_generator.telemetry.logging import configure_logging

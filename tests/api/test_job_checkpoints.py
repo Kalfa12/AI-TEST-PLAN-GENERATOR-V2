@@ -7,11 +7,17 @@ from httpx import ASGITransport, AsyncClient
 
 from ai_testplan_generator.agents.state import AutonomousState
 from ai_testplan_generator.api.app import create_app
-from ai_testplan_generator.api.deps import get_current_user, get_job_repo, get_job_queue
+from ai_testplan_generator.api.deps import (
+    get_current_user,
+    get_job_repo,
+    get_job_queue,
+    get_project_repo,
+)
 from ai_testplan_generator.api.errors import NotFoundError
 from ai_testplan_generator.api.jobs import Job
 from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.jobs import JobRepository
+from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.models import DetailLevel
 from tests.conftest import make_requirement
@@ -55,6 +61,7 @@ async def test_checkpoint_endpoint_reads_durable_state_without_live_job(
 ) -> None:
     settings = Settings(APP_DB_PATH=str(tmp_path / "app.db"), API_DEBUG=True)
     repo = await JobRepository.create(db_path=settings.app_db_path)
+    project_repo = await ProjectRepository.create(db_path=settings.app_db_path)
     job = Job(
         id="job_api_checkpoint",
         kind="run_autonomous_interactive",
@@ -71,6 +78,7 @@ async def test_checkpoint_endpoint_reads_durable_state_without_live_job(
     app = create_app(settings=settings)
     app.dependency_overrides[get_job_repo] = lambda: repo
     app.dependency_overrides[get_job_queue] = lambda: RepoOnlyQueue(repo)
+    app.dependency_overrides[get_project_repo] = lambda: project_repo
     app.dependency_overrides[get_current_user] = lambda: User(
         id="usr_checkpoint",
         email="checkpoint@test.local",
@@ -92,6 +100,7 @@ async def test_checkpoint_endpoint_reads_durable_state_without_live_job(
     assert body["state"]["requirements"][0]["project_id"] == "project-a"
 
     await repo.close()
+    await project_repo.close()
 
 
 async def test_resume_endpoint_stores_durable_directive_without_live_signal(
@@ -100,6 +109,7 @@ async def test_resume_endpoint_stores_durable_directive_without_live_signal(
 ) -> None:
     settings = Settings(APP_DB_PATH=str(tmp_path / "app.db"), API_DEBUG=True)
     repo = await JobRepository.create(db_path=settings.app_db_path)
+    project_repo = await ProjectRepository.create(db_path=settings.app_db_path)
     job = Job(
         id="job_api_resume",
         kind="run_autonomous_interactive",
@@ -116,6 +126,7 @@ async def test_resume_endpoint_stores_durable_directive_without_live_signal(
     app = create_app(settings=settings)
     app.dependency_overrides[get_job_repo] = lambda: repo
     app.dependency_overrides[get_job_queue] = lambda: RepoOnlyQueue(repo)
+    app.dependency_overrides[get_project_repo] = lambda: project_repo
     app.dependency_overrides[get_current_user] = lambda: User(
         id="usr_resume",
         email="resume@test.local",
@@ -144,3 +155,4 @@ async def test_resume_endpoint_stores_durable_directive_without_live_signal(
     }
 
     await repo.close()
+    await project_repo.close()

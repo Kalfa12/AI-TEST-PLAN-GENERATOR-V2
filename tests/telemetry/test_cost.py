@@ -245,6 +245,7 @@ async def test_admin_costs_endpoint(tmp_path: Path) -> None:
         CROSSDOC_GRAPH_BACKEND="networkx",
         APP_DB_PATH=db,
         COST_TRACKING_ENABLED=True,
+        API_DEBUG=True,
     )
 
     admin_user = User(

@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 import jwt
 
@@ -39,6 +40,7 @@ def encode_access_token(user_id: str, settings: Settings) -> str:
         "sub": user_id,
         "iat": now,
         "exp": now + timedelta(seconds=settings.jwt_access_token_ttl_seconds),
+        "jti": f"jwt_{uuid4().hex}",
         "scope": "access",
     }
     return str(jwt.encode(payload, _encode_key(settings), algorithm=_algorithm(settings)))
@@ -50,6 +52,7 @@ def encode_refresh_token(user_id: str, settings: Settings) -> str:
         "sub": user_id,
         "iat": now,
         "exp": now + timedelta(seconds=settings.jwt_refresh_token_ttl_seconds),
+        "jti": f"jwt_{uuid4().hex}",
         "scope": "refresh",
     }
     return str(jwt.encode(payload, _encode_key(settings), algorithm=_algorithm(settings)))
@@ -68,3 +71,12 @@ def decode_token(token: str, settings: Settings) -> dict[str, Any]:
         raise AuthError("Token has expired.")
     except jwt.InvalidTokenError as exc:
         raise AuthError(f"Invalid token: {exc}")
+
+
+def token_expires_at(payload: dict[str, Any]) -> datetime:
+    exp = payload.get("exp")
+    if isinstance(exp, datetime):
+        return exp.astimezone(timezone.utc)
+    if isinstance(exp, (int, float)):
+        return datetime.fromtimestamp(exp, tz=timezone.utc)
+    raise AuthError("Token is missing an expiry.")

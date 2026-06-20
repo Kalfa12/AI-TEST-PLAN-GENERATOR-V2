@@ -89,6 +89,11 @@ async def get_current_user(
         user_id = str(payload.get("sub", ""))
         if payload.get("scope") != "access":
             raise AuthError("Token is not an access token.")
+        token_id = str(payload.get("jti", ""))
+        if not token_id:
+            raise AuthError("Token is missing an identifier.")
+        if await user_repo.is_token_revoked(token_id):
+            raise AuthError("Token has been revoked.")
         user = await user_repo.get_by_id(user_id)
         if user is None or not user.is_active:
             raise AuthError("User not found or disabled.")
@@ -137,6 +142,11 @@ async def get_current_user_ws(websocket: WebSocket) -> User:
     user_id = str(payload.get("sub", ""))
     if payload.get("scope") != "access":
         raise AuthError("Token is not an access token.")
+    token_id = str(payload.get("jti", ""))
+    if not token_id:
+        raise AuthError("Token is missing an identifier.")
+    if await user_repo.is_token_revoked(token_id):
+        raise AuthError("Token has been revoked.")
     user = await user_repo.get_by_id(user_id)
     if user is None or not user.is_active:
         raise AuthError("User not found or disabled.")

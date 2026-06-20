@@ -12,11 +12,22 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from ai_testplan_generator.api.deps import get_blob_store, get_defects, get_job_queue
+from ai_testplan_generator.api.deps import (
+    get_blob_store,
+    get_brain,
+    get_current_user,
+    get_defects,
+    get_job_queue,
+    get_project_repo,
+)
 from ai_testplan_generator.api.errors import NotFoundError
 from ai_testplan_generator.api.security.rbac import require
+from ai_testplan_generator.api.security.projects import ensure_project_access
+from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
 from ai_testplan_generator.models import CATALOG, DefectReport
+from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
 
 router = APIRouter(tags=["quality"])
@@ -43,9 +54,13 @@ async def get_catalog() -> dict[str, list[dict]]:
 async def get_plan_defects(
     project_id: str,
     plan_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
     defects: Annotated[dict[str, DefectReport], Depends(get_defects)],
     blob_store: Annotated[BlobStore, Depends(get_blob_store)],
 ) -> DefectReport:
+    plan = await brain.memory.get_test_plan(plan_id)
+    if plan is None or plan.project_id != project_id:
+        raise NotFoundError(f"No defect report for plan '{plan_id}'.")
     cached = defects.get(plan_id)
     if cached is not None:
         return cached
@@ -68,9 +83,16 @@ async def get_plan_defects(
 )
 async def get_job_defects(
     job_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> DefectReport:
     job = await job_queue.get_status(job_id)
+    await ensure_project_access(
+        project_id=job.project_id,
+        current_user=current_user,
+        project_repo=project_repo,
+    )
     paused_state = getattr(job, "paused_state", None)
     if paused_state is not None and getattr(paused_state, "defect_report", None) is not None:
         return paused_state.defect_report  # type: ignore[no-any-return]

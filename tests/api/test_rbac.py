@@ -7,6 +7,7 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 from ai_testplan_generator.api.app import create_app
+from ai_testplan_generator.api.jobs import Job
 from ai_testplan_generator.api.deps import (
     get_brain,
     get_blob_store,
@@ -21,11 +22,13 @@ from ai_testplan_generator.api.deps import (
     get_user_repo,
 )
 from ai_testplan_generator.config import Settings
+from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.domain.projects import ProjectRepository, ProjectRole
 from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.events.broker import InMemoryEventBroker
 from ai_testplan_generator.jobs.queue import FakeJobQueue
 from ai_testplan_generator.storage.local_fs import LocalFilesystemBlobStore
+from tests.conftest import make_document, make_requirement
 
 
 def _make_user(user_id: str, is_admin: bool = False) -> User:
@@ -66,10 +69,13 @@ def _build_client(
     user_repo: UserRepository,
     current_user: User,
     tmp_path,  # type: ignore[no-untyped-def]
+    *,
+    brain=None,  # type: ignore[no-untyped-def]
+    job_repo: JobRepository | None = None,
 ) -> AsyncClient:
     from ai_testplan_generator.pipelines.brain import Brain
 
-    test_brain = Brain.build(llm=mock_llm, settings=settings)  # type: ignore[arg-type]
+    test_brain = brain or Brain.build(llm=mock_llm, settings=settings)  # type: ignore[arg-type]
     blob_store = LocalFilesystemBlobStore(root=str(tmp_path / "blobs"))
     event_broker = InMemoryEventBroker()
     plans: dict = {}  # type: ignore[type-arg]
@@ -80,6 +86,7 @@ def _build_client(
         event_broker=event_broker,
         plans=plans,
         project_plans=project_plans,
+        job_repo=job_repo,
     )
     app = create_app(settings=settings)
     app.dependency_overrides[get_brain] = lambda: test_brain
@@ -160,4 +167,87 @@ async def test_non_member_cannot_generate_plan(rbac_setup) -> None:  # type: ign
             f"/projects/{project_id}/plans",
             json={"goal": "test", "detail_level": "summary", "max_revision_rounds": 1},
         )
+    assert r.status_code == 401
+
+
+async def test_non_member_cannot_read_project_chat_history(rbac_setup) -> None:  # type: ignore[no-untyped-def]
+    settings, project_repo, user_repo, project_id, mock_llm, tmp_path = rbac_setup
+    outsider = _make_user("usr_chat_outsider")
+
+    async with _build_client(
+        mock_llm, settings, project_repo, user_repo, outsider, tmp_path
+    ) as c:
+        r = await c.get(
+            "/chat/session-secret/history",
+            params={"project_id": project_id},
+        )
+
+    assert r.status_code == 401
+
+
+async def test_non_member_cannot_read_project_session_events(rbac_setup) -> None:  # type: ignore[no-untyped-def]
+    settings, project_repo, user_repo, project_id, mock_llm, tmp_path = rbac_setup
+    outsider = _make_user("usr_event_outsider")
+
+    async with _build_client(
+        mock_llm, settings, project_repo, user_repo, outsider, tmp_path
+    ) as c:
+        r = await c.get(
+            "/sessions/session-secret/events",
+            params={"project_id": project_id},
+        )
+
+    assert r.status_code == 401
+
+
+async def test_non_member_cannot_read_project_job_status(rbac_setup) -> None:  # type: ignore[no-untyped-def]
+    settings, project_repo, user_repo, project_id, mock_llm, tmp_path = rbac_setup
+    job_repo = await JobRepository.create(db_path=str(tmp_path / "app.db"))
+    try:
+        job = Job(id="job_secret", kind="run_autonomous", project_id=project_id)
+        await job_repo.save_job(job, project_id=project_id)
+        outsider = _make_user("usr_job_outsider")
+
+        async with _build_client(
+            mock_llm,
+            settings,
+            project_repo,
+            user_repo,
+            outsider,
+            tmp_path,
+            job_repo=job_repo,
+        ) as c:
+            r = await c.get("/jobs/job_secret")
+
+        assert r.status_code == 401
+    finally:
+        await job_repo.close()
+
+
+async def test_non_member_cannot_read_project_trace(rbac_setup) -> None:  # type: ignore[no-untyped-def]
+    settings, project_repo, user_repo, project_id, mock_llm, tmp_path = rbac_setup
+    from ai_testplan_generator.pipelines.brain import Brain
+
+    brain = Brain.build(llm=mock_llm, settings=settings)  # type: ignore[arg-type]
+    doc = make_document(project_id=project_id)
+    req = make_requirement(
+        project_id=project_id,
+        source_document_id=doc.id,
+        source_chunk_ids=[],
+    )
+    await brain.memory.register_document(doc)
+    await brain.memory.register_requirements([req])
+    outsider = _make_user("usr_trace_outsider")
+
+    async with _build_client(
+        mock_llm,
+        settings,
+        project_repo,
+        user_repo,
+        outsider,
+        tmp_path,
+        brain=brain,
+    ) as c:
+        r = await c.get(f"/trace/{req.id}", params={"project_id": project_id})
+
     assert r.status_code == 401
