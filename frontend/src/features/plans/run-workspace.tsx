@@ -178,6 +178,7 @@ export function RunWorkspacePage() {
           actionPending={actionPending}
           onAccept={onAccept}
           onReprompt={onReprompt}
+          onAbort={onAbort}
         />
       ) : job?.status === "paused" ? (
         <Card>
@@ -256,16 +257,18 @@ function draftFeedbackFromDefects(
   return `Address the following defects:\n${lines.join("\n")}`;
 }
 
-function CheckpointCard({
+export function CheckpointCard({
   checkpoint,
   actionPending,
   onAccept,
   onReprompt,
+  onAbort,
 }: {
   checkpoint: CheckpointResponse;
   actionPending: boolean;
   onAccept: () => void;
   onReprompt: (feedback: string) => void;
+  onAbort?: () => void;
 }) {
   const [feedback, setFeedback] = useState("");
   const [showFeedback, setShowFeedback] = useState(false);
@@ -352,6 +355,15 @@ function CheckpointCard({
                 Reprompt from detected defects
               </Button>
             )}
+            {onAbort && (
+              <Button
+                variant="outline"
+                onClick={onAbort}
+                disabled={actionPending}
+              >
+                Abort run
+              </Button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -382,6 +394,15 @@ function CheckpointCard({
               >
                 Cancel
               </Button>
+              {onAbort && (
+                <Button
+                  variant="outline"
+                  onClick={onAbort}
+                  disabled={actionPending}
+                >
+                  Abort run
+                </Button>
+              )}
             </div>
           </div>
         )}

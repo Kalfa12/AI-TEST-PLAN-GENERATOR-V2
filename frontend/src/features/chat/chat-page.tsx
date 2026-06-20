@@ -12,14 +12,14 @@ import {
   touchSession,
 } from "@/lib/chat-sessions";
 
-interface Citation {
+export interface Citation {
   chunk_id?: string;
   document_id?: string;
   page?: number;
   excerpt?: string;
 }
 
-interface Message {
+export interface Message {
   id: string;
   role: "user" | "assistant";
   text: string;
@@ -311,7 +311,7 @@ export function ChatPage() {
   );
 }
 
-function MessageBubble({
+export function MessageBubble({
   message,
   onConfirm,
 }: {
@@ -371,7 +371,7 @@ function CitationChip({ citation }: { citation: Citation }) {
   );
 }
 
-function UnsupportedActionNotice({ action }: { action: string }) {
+export function UnsupportedActionNotice({ action }: { action: string }) {
   return (
     <div className="mt-3 p-2 border border-border rounded-md bg-muted text-muted-foreground text-xs">
       <div className="font-medium text-foreground">Action not available: {action}</div>

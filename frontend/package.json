@@ -8,6 +8,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:e2e": "playwright test",
     "test:watch": "vitest",
     "lint": "eslint src --ext ts,tsx",
     "gen:openapi": "python ../scripts/dump_openapi.py openapi.json",
@@ -31,6 +32,7 @@
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.9.0",
+    "@playwright/test": "^1.61.0",
     "@testing-library/jest-dom": "^6.5.0",
     "@testing-library/react": "^16.0.1",
     "@testing-library/user-event": "^14.5.2",

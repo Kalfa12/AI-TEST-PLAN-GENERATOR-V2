@@ -21,6 +21,7 @@ import { DefectsPanel } from "@/features/quality/defects-panel";
 import { useResources } from "@/features/projects/hooks";
 import type {
   Resource,
+  SourceEvidence,
   TestCaseStatus,
   TestCaseSummary,
   TestSchedule,
@@ -501,26 +502,7 @@ function TestCaseTable({
                       {tc.source_evidence && tc.source_evidence.length > 0 && (
                         <div className="md:col-span-2">
                           <div className="text-xs uppercase text-muted-foreground mb-0.5">Source evidence</div>
-                          <ul className="space-y-2">
-                            {tc.source_evidence.map((ev, i) => (
-                              <li key={`${ev.chunk_id}-${i}`} className="rounded border border-border bg-background px-3 py-2">
-                                <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
-                                  <span>{ev.relation}</span>
-                                  <span>{ev.document_id}</span>
-                                  <span>{ev.chunk_id}</span>
-                                  {ev.page_start && (
-                                    <span>
-                                      p.{ev.page_start}
-                                      {ev.page_end && ev.page_end !== ev.page_start ? `-${ev.page_end}` : ""}
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
-                                  {ev.excerpt}
-                                </p>
-                              </li>
-                            ))}
-                          </ul>
+                          <SourceEvidenceList evidence={tc.source_evidence} />
                         </div>
                       )}
 
@@ -630,5 +612,37 @@ function TestCaseTable({
         })}
       </TBody>
     </Table>
+  );
+}
+
+export function SourceEvidenceList({
+  evidence,
+}: {
+  evidence: SourceEvidence[];
+}) {
+  return (
+    <ul className="space-y-2">
+      {evidence.map((ev, i) => (
+        <li
+          key={`${ev.chunk_id}-${i}`}
+          className="rounded border border-border bg-background px-3 py-2"
+        >
+          <div className="flex flex-wrap items-center gap-2 text-xs font-mono text-muted-foreground">
+            <span>{ev.relation}</span>
+            <span>{ev.document_id}</span>
+            <span>{ev.chunk_id}</span>
+            {ev.page_start && (
+              <span>
+                p.{ev.page_start}
+                {ev.page_end && ev.page_end !== ev.page_start ? `-${ev.page_end}` : ""}
+              </span>
+            )}
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">
+            {ev.excerpt}
+          </p>
+        </li>
+      ))}
+    </ul>
   );
 }
