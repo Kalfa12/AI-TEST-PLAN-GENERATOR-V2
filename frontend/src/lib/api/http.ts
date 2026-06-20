@@ -56,4 +56,13 @@ http.interceptors.response.use(
   },
 );
 
-export const wsBaseURL = import.meta.env.VITE_WS_BASE_URL ?? baseURL.replace(/^http/, "ws");
+function absoluteWebSocketBase(url: string): string {
+  if (!url.startsWith("/")) return url.replace(/^http/, "ws");
+  if (typeof window === "undefined") return url;
+  const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${protocol}//${window.location.host}${url}`;
+}
+
+export const wsBaseURL = absoluteWebSocketBase(
+  import.meta.env.VITE_WS_BASE_URL ?? baseURL,
+);

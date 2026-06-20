@@ -7,6 +7,12 @@ from httpx import AsyncClient
 
 from ai_testplan_generator.api.app import create_app
 from ai_testplan_generator.config import DEFAULT_JWT_SECRET, Settings
+from ai_testplan_generator.storage.local_fs import LocalFilesystemBlobStore
+
+
+class FailingBlobStore(LocalFilesystemBlobStore):
+    async def put(self, key: str, data: bytes, content_type: str) -> str:
+        raise RuntimeError("blob store unavailable")
 
 
 class TestLiveness:
@@ -23,6 +29,46 @@ class TestLiveness:
         body = resp.json()
         assert body["status"] == "ok"
         assert "checks" in body
+        assert body["checks"]["api"] == "ok"
+        assert body["checks"]["project_db"] == "ok"
+        assert body["checks"]["blob_store"] == "ok"
+        assert body["checks"]["redis"] == "not_configured"
+
+    async def test_readyz_returns_503_when_blob_store_fails(
+        self, client: AsyncClient, tmp_path
+    ) -> None:  # type: ignore[no-untyped-def]
+        from ai_testplan_generator.api.deps import get_blob_store
+
+        failing = FailingBlobStore(root=str(tmp_path / "bad-blobs"))
+        client._transport.app.dependency_overrides[get_blob_store] = lambda: failing  # type: ignore[attr-defined]
+
+        resp = await client.get("/readyz")
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["status"] == "degraded"
+        assert body["checks"]["blob_store"] == "unavailable"
+        assert "blob_store" in body["unhealthy"]
+
+    async def test_readyz_checks_redis_when_event_broker_uses_redis(
+        self, client: AsyncClient
+    ) -> None:
+        from ai_testplan_generator.api.deps import get_settings
+
+        redis_settings = Settings(
+            SEMANTIC_MEMORY_BACKEND="inmemory",
+            EPISODIC_MEMORY_BACKEND="inmemory",
+            CROSSDOC_GRAPH_BACKEND="networkx",
+            EVENT_BROKER_BACKEND="redis",
+            REDIS_URL="redis://127.0.0.1:1/0",
+            API_DEBUG=True,
+        )
+        client._transport.app.dependency_overrides[get_settings] = lambda: redis_settings  # type: ignore[attr-defined]
+
+        resp = await client.get("/readyz")
+        assert resp.status_code == 503
+        body = resp.json()
+        assert body["checks"]["redis"] == "unavailable"
+        assert "redis" in body["unhealthy"]
 
     async def test_unknown_path_returns_404(self, client: AsyncClient) -> None:
         resp = await client.get("/no-such-path")

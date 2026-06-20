@@ -276,11 +276,76 @@ npm run dev
 ```
 
 ```bash
-# 3. (Optional) Full stack with Redis + Postgres + Qdrant + Neo4j
-docker compose up -d
+# 3. (Optional) local Docker stack
+cp ops/compose/env.example .env
+# Edit .env: set a provider key, JWT_SECRET, and API_CORS_ORIGINS.
+docker compose up -d --build
 ```
 
-Open the UI, register a user, create a project, upload a spec, click **Generate plan**.
+Open the UI, sign in, create a project, upload a spec, click **Generate plan**.
+
+### Single-VM Docker deployment
+
+This is the supported demo deployment path for one review server or VM. It
+runs the FastAPI API, Redis, worker, and an nginx-served React frontend. The
+frontend is exposed on port `8080`; nginx proxies `/api` and `/ws` to the API.
+
+1. Install Docker Engine and the Docker Compose plugin on the VM.
+2. Point a DNS name or firewall rule at the VM. Open ports `8080` for the UI
+   and, only if you need direct API/debug access, `8000`.
+3. Create the production env file:
+
+```bash
+cp ops/compose/env.example .env
+python - <<'PY'
+import secrets
+print(secrets.token_urlsafe(48))
+PY
+```
+
+4. Edit `.env`:
+
+| Variable | Required value |
+|---|---|
+| `API_DEBUG` | `false` |
+| `API_CORS_ORIGINS` | JSON list containing your UI origin, for example `["https://testplans.example.com","http://YOUR_VM_IP:8080"]` |
+| `JWT_SECRET` | Paste the generated secret above, or set `JWT_PRIVATE_KEY_PATH` / `JWT_PUBLIC_KEY_PATH` for RS256 |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, or `GOOGLE_API_KEY` | Set exactly the provider credential you use |
+| `LLM_MODEL_SMART`, `LLM_MODEL_BALANCED`, `LLM_MODEL_FAST`, `LLM_MODEL_EMBEDDING` | Models supported by that provider through LiteLLM |
+| `APP_DB_PATH` | Keep `data/app.db` for the compose volume unless you mount another path |
+| `BLOB_STORE_BACKEND` and `BLOB_STORE_LOCAL_ROOT` | Keep `local` and `./data/blobs` for the compose volume, or configure S3 |
+| `REDIS_URL` | Keep `redis://redis:6379/0` in compose |
+| `EVENT_BROKER_BACKEND` | Keep `redis` in compose so SSE progress works across processes |
+
+5. Start and verify:
+
+```bash
+docker compose up -d --build
+docker compose ps
+curl -fsS http://localhost:8000/healthz
+curl -fsS http://localhost:8000/readyz
+```
+
+`/healthz` is a liveness check. `/readyz` is the deployment gate: it checks the
+API process, project/user SQLite DB, blob store round-trip, configured memory
+backends, and Redis when Redis-backed events/jobs are enabled. It returns `503`
+with an `unhealthy` list if a dependency is unavailable.
+
+6. Create the first admin user inside the API container:
+
+```bash
+docker compose exec api python scripts/create_admin.py \
+  --email admin@example.com \
+  --password 'replace-this-password' \
+  --name 'Deployment Admin'
+```
+
+Then sign in through the UI with that account. If the user already exists, the
+script reports it and exits without changing the password.
+
+7. Open the app at `http://YOUR_VM_IP:8080` or your HTTPS reverse-proxy URL.
+   Prometheus-format metrics are available at `http://YOUR_VM_IP:8000/metrics`
+   when `METRICS_ENABLED=true`.
 
 ---
 
