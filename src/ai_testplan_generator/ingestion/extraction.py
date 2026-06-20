@@ -21,6 +21,10 @@ from collections.abc import Iterable, Sequence
 from pydantic import BaseModel, Field
 
 from ai_testplan_generator.llm import ChatMessage, LLMGateway
+from ai_testplan_generator.llm.prompt_safety import (
+    UNTRUSTED_DOCUMENT_POLICY,
+    format_untrusted_document_chunk,
+)
 from ai_testplan_generator.models import Chunk, Requirement, RequirementKind
 from ai_testplan_generator.prompts.library import REQUIREMENT_EXTRACTOR_SYSTEM
 
@@ -74,10 +78,15 @@ class RequirementExtractor:
             ChatMessage(
                 role="user",
                 content=(
-                    f"CHUNK_ID: {chunk.id}\n"
-                    f"DOCUMENT_ID: {chunk.document_id}\n"
-                    f"CHUNK_KIND: {chunk.kind.value}\n"
-                    f"---\n{chunk.text}\n---"
+                    f"{UNTRUSTED_DOCUMENT_POLICY}\n\n"
+                    + format_untrusted_document_chunk(
+                        chunk_id=chunk.id,
+                        document_id=chunk.document_id,
+                        kind=chunk.kind.value,
+                        page_start=chunk.page_start,
+                        page_end=chunk.page_end,
+                        text=chunk.text,
+                    )
                 ),
             ),
         ]

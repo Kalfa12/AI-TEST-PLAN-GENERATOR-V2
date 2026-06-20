@@ -14,6 +14,10 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
+from ai_testplan_generator.llm.prompt_safety import (
+    UNTRUSTED_DOCUMENT_POLICY,
+    format_untrusted_document_chunk,
+)
 from ai_testplan_generator.memory.base import EpisodeEvent
 from ai_testplan_generator.prompts.library import COPILOT_SYSTEM
 
@@ -61,7 +65,15 @@ class CopilotAgent(BaseAgent[_CopilotInput, CopilotReply]):
         grounding: list[str] = []
         for ch in bundle.chunks:
             grounding.append(
-                f"[chunk:{ch.id} p.{ch.page_start}-{ch.page_end}] {ch.text[:500]}"
+                format_untrusted_document_chunk(
+                    chunk_id=ch.id,
+                    document_id=ch.document_id,
+                    kind=ch.kind.value,
+                    page_start=ch.page_start,
+                    page_end=ch.page_end,
+                    text=ch.text,
+                    max_chars=500,
+                )
             )
         for r in bundle.requirements:
             grounding.append(f"[req:{r.id}] {r.title} - {r.statement}")
@@ -69,7 +81,14 @@ class CopilotAgent(BaseAgent[_CopilotInput, CopilotReply]):
         messages: list[ChatMessage] = [ChatMessage(role="system", content=COPILOT_SYSTEM)]
         if grounding:
             messages.append(
-                ChatMessage(role="system", content="Retrieved context:\n" + "\n".join(grounding))
+                ChatMessage(
+                    role="system",
+                    content=(
+                        "Retrieved context:\n"
+                        f"{UNTRUSTED_DOCUMENT_POLICY}\n\n"
+                        + "\n\n".join(grounding)
+                    ),
+                )
             )
         messages.extend(history)
         messages.append(ChatMessage(role="user", content=inp.user_message))

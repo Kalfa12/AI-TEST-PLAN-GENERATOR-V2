@@ -14,6 +14,10 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
+from ai_testplan_generator.llm.prompt_safety import (
+    UNTRUSTED_DOCUMENT_POLICY,
+    format_untrusted_document_chunk,
+)
 from ai_testplan_generator.models import Requirement, SourceEvidence, TestCase, TestPlan
 from ai_testplan_generator.models.traceability import TraceKind, TraceLink
 from ai_testplan_generator.prompts.library import TRACEABILITY_SYSTEM
@@ -59,7 +63,18 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
                     source_chunks.extend(
                         await self.ctx.memory.get_chunks_by_ids(r.source_chunk_ids)
                     )
-                ctx_blob = "\n".join(f"[{c.id}] {c.text[:400]}" for c in source_chunks)
+                ctx_blob = "\n\n".join(
+                    format_untrusted_document_chunk(
+                        chunk_id=c.id,
+                        document_id=c.document_id,
+                        kind=c.kind.value,
+                        page_start=c.page_start,
+                        page_end=c.page_end,
+                        text=c.text,
+                        max_chars=400,
+                    )
+                    for c in source_chunks
+                )
                 messages = [
                     ChatMessage(role="system", content=TRACEABILITY_SYSTEM),
                     ChatMessage(
@@ -71,7 +86,7 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
                             f" acceptance: {[c.statement for c in tc.acceptance_criteria]}\n\n"
                             f"Covered requirements:\n"
                             + "\n".join(f"- [{r.id}] {r.statement}" for r in reqs)
-                            + f"\n\nSource chunks:\n{ctx_blob}"
+                            + f"\n\nSource chunks:\n{UNTRUSTED_DOCUMENT_POLICY}\n\n{ctx_blob}"
                         ),
                     ),
                 ]

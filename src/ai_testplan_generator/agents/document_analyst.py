@@ -10,6 +10,10 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
+from ai_testplan_generator.llm.prompt_safety import (
+    UNTRUSTED_DOCUMENT_POLICY,
+    format_untrusted_document_chunk,
+)
 from ai_testplan_generator.models import Document
 
 
@@ -43,7 +47,18 @@ class DocumentAnalystAgent(BaseAgent[_AnalystInput, CorpusSummary]):
         for ch in bundle.chunks:
             doc = next((d for d in inp.documents if d.id == ch.document_id), None)
             tag = doc.title if doc else ch.document_id
-            context_lines.append(f"[{tag} p.{ch.page_start}] {ch.text[:400]}")
+            context_lines.append(
+                f"SOURCE_TITLE: {tag}\n"
+                + format_untrusted_document_chunk(
+                    chunk_id=ch.id,
+                    document_id=ch.document_id,
+                    kind=ch.kind.value,
+                    page_start=ch.page_start,
+                    page_end=ch.page_end,
+                    text=ch.text,
+                    max_chars=400,
+                )
+            )
 
         messages = [
             ChatMessage(
@@ -59,7 +74,8 @@ class DocumentAnalystAgent(BaseAgent[_AnalystInput, CorpusSummary]):
                 role="user",
                 content=(
                     f"Documents: {[d.title for d in inp.documents]}\n\n"
-                    "Representative excerpts:\n" + "\n".join(context_lines[:40])
+                    f"Representative excerpts:\n{UNTRUSTED_DOCUMENT_POLICY}\n\n"
+                    + "\n\n".join(context_lines[:40])
                 ),
             ),
         ]

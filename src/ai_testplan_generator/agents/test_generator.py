@@ -14,6 +14,10 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
+from ai_testplan_generator.llm.prompt_safety import (
+    UNTRUSTED_DOCUMENT_POLICY,
+    format_untrusted_document_chunk,
+)
 from ai_testplan_generator.memory.base import EpisodeEvent  # noqa: F401
 from ai_testplan_generator.models import (
     AcceptanceCriterion,
@@ -131,7 +135,17 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
         ctx_lines: list[str] = []
         source_evidence: list[SourceEvidence] = []
         for ch in source_chunks:
-            ctx_lines.append(f"[SOURCE:{ch.id} p.{ch.page_start}] {ch.text}")
+            ctx_lines.append(
+                format_untrusted_document_chunk(
+                    chunk_id=ch.id,
+                    document_id=ch.document_id,
+                    kind=ch.kind.value,
+                    page_start=ch.page_start,
+                    page_end=ch.page_end,
+                    relation="source",
+                    text=ch.text,
+                )
+            )
             source_evidence.append(
                 SourceEvidence(
                     chunk_id=ch.id,
@@ -145,7 +159,18 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
         for ch in bundle.chunks:
             if ch.id in req.source_chunk_ids:
                 continue
-            ctx_lines.append(f"[RELATED:{ch.id}] {ch.text[:500]}")
+            ctx_lines.append(
+                format_untrusted_document_chunk(
+                    chunk_id=ch.id,
+                    document_id=ch.document_id,
+                    kind=ch.kind.value,
+                    page_start=ch.page_start,
+                    page_end=ch.page_end,
+                    relation="related",
+                    text=ch.text,
+                    max_chars=500,
+                )
+            )
             if len(source_evidence) < 5:
                 source_evidence.append(
                     SourceEvidence(
@@ -179,7 +204,7 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
                     f" rationale={req.rationale or '-'}\n"
                     f" acceptance_hint={req.acceptance_hint or '-'}\n"
                     f" excerpt={req.verbatim_excerpt or '-'}\n\n"
-                    f"Context:\n" + "\n".join(ctx_lines)
+                    f"Context:\n{UNTRUSTED_DOCUMENT_POLICY}\n\n" + "\n\n".join(ctx_lines)
                 ),
             ),
         ]
