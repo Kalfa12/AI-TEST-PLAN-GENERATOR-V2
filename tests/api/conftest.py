@@ -73,6 +73,7 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
     project_repo = await ProjectRepository.create(
         db_path=str(tmp_path / "app.db")
     )
+    test_brain.project_repo = project_repo
     _user_repo = await UserRepository.create(
         db_path=str(tmp_path / "app.db")
     )

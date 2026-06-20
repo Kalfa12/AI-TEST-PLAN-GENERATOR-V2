@@ -8,6 +8,7 @@ import {
   listProjects,
   removeMember,
   updateProject,
+  updateProjectBudget,
   type ProjectRole,
 } from "./api";
 
@@ -36,6 +37,21 @@ export function useUpdateProject(id: string) {
   return useMutation({
     mutationFn: (body: { name?: string; description?: string }) =>
       updateProject(id, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["project", id] });
+    },
+  });
+}
+
+export function useUpdateProjectBudget(id: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      monthly_budget_usd: number;
+      budget_override_usd?: number | null;
+      budget_override_until?: string | null;
+    }) => updateProjectBudget(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });
       qc.invalidateQueries({ queryKey: ["project", id] });

@@ -41,6 +41,11 @@ class RateLimitError(AppError):
     error_code = "RATE_LIMIT"
 
 
+class BudgetExceededError(AppError):
+    status_code = 402
+    error_code = "BUDGET_EXCEEDED"
+
+
 class BackendUnavailable(AppError):
     status_code = 503
     error_code = "BACKEND_UNAVAILABLE"

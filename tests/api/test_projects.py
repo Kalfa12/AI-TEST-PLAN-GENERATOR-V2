@@ -17,6 +17,8 @@ class TestProjectCRUD:
         assert body["name"] == "Pump Controller Tests"
         assert body["id"].startswith("proj_")
         assert body["owner_id"] == "usr_test000001"
+        assert body["monthly_budget_usd"] == 50.0
+        assert body["current_month_spend_usd"] == 0.0
 
         members = await client.get(f"/projects/{body['id']}/members")
         assert members.status_code == 200
@@ -55,6 +57,43 @@ class TestProjectCRUD:
         )
         assert patch_resp.status_code == 200
         assert patch_resp.json()["name"] == "New Name"
+
+    async def test_update_project_budget(self, client: AsyncClient) -> None:
+        create_resp = await client.post(
+            "/projects", json={"name": "Budgeted Project"}
+        )
+        project_id = create_resp.json()["id"]
+
+        patch_resp = await client.patch(
+            f"/projects/{project_id}/budget",
+            json={
+                "monthly_budget_usd": 12.5,
+                "budget_override_usd": 40.0,
+                "budget_override_until": "2099-01-01T00:00:00Z",
+            },
+        )
+
+        assert patch_resp.status_code == 200
+        body = patch_resp.json()
+        assert body["monthly_budget_usd"] == 12.5
+        assert body["budget_override_usd"] == 40.0
+        assert body["budget_override_until"].startswith("2099-01-01T00:00:00")
+
+    async def test_update_project_budget_rejects_partial_override(
+        self, client: AsyncClient
+    ) -> None:
+        create_resp = await client.post(
+            "/projects", json={"name": "Invalid Budget Project"}
+        )
+        project_id = create_resp.json()["id"]
+
+        resp = await client.patch(
+            f"/projects/{project_id}/budget",
+            json={"monthly_budget_usd": 10.0, "budget_override_usd": 20.0},
+        )
+
+        assert resp.status_code == 422
+        assert resp.json()["error_code"] == "VALIDATION_ERROR"
 
     async def test_archive_project(self, client: AsyncClient) -> None:
         create_resp = await client.post(

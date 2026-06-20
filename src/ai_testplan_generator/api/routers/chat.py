@@ -32,6 +32,7 @@ from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.llm.base import ChatMessage
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.pipelines.interactive import InteractivePipeline
+from ai_testplan_generator.telemetry.budget import enforce_project_llm_budget
 
 _log = structlog.get_logger(__name__)
 
@@ -133,9 +134,30 @@ async def chat_stream(
 
     await websocket.accept()
     websocket.state.current_user = current_user
+    project_id = websocket.query_params.get("project_id")
+    context_keys: list[str] = []
     try:
+        import structlog.contextvars as sc_ctx
+
+        values = {"session_id": session_id}
+        if project_id:
+            values["project_id"] = project_id
+        sc_ctx.bind_contextvars(**values)
+        context_keys = list(values)
+    except Exception:  # noqa: BLE001
+        context_keys = []
+
+    try:
+        await _ensure_project_chat_access(
+            project_id, current_user, websocket.app.state.project_repo
+        )
         while True:
             message = await websocket.receive_text()
+            await enforce_project_llm_budget(
+                settings=websocket.app.state.settings,
+                project_repo=websocket.app.state.project_repo,
+                project_id=project_id,
+            )
 
             # Build prompt: prior turns from episodic memory + current message.
             # Cap at 20 message events to keep token usage bounded.
@@ -165,3 +187,11 @@ async def chat_stream(
             await websocket.send_text(json.dumps({"error": str(exc)}))
         except Exception:
             pass
+    finally:
+        if context_keys:
+            try:
+                import structlog.contextvars as sc_ctx
+
+                sc_ctx.unbind_contextvars(*context_keys)
+            except Exception:
+                pass

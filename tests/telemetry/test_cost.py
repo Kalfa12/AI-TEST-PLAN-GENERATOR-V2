@@ -12,6 +12,7 @@ from ai_testplan_generator.telemetry.cost import (
     COST_TABLE,
     _compute_cost,
     get_cost_summary,
+    get_project_spend_usd,
     record_usage,
 )
 
@@ -131,6 +132,41 @@ async def test_get_cost_summary_group_by_model(tmp_path: Path) -> None:
     models_returned = {row["model"] for row in summary}
     assert "gpt-4o" in models_returned
     assert "gpt-4o-mini" in models_returned
+
+
+@pytest.mark.asyncio
+async def test_get_project_spend_usd_filters_project(tmp_path: Path) -> None:
+    db = str(tmp_path / "project_spend.db")
+
+    await record_usage(
+        db,
+        session_id="s1",
+        project_id="p1",
+        user_id=None,
+        model="gpt-4o",
+        role="balanced",
+        input_tokens=1000,
+        output_tokens=500,
+    )
+    await record_usage(
+        db,
+        session_id="s2",
+        project_id="p2",
+        user_id=None,
+        model="gpt-4o",
+        role="balanced",
+        input_tokens=1000,
+        output_tokens=500,
+    )
+
+    spend = await get_project_spend_usd(
+        db,
+        project_id="p1",
+        from_ts="2020-01-01T00:00:00+00:00",
+        to_ts="2099-12-31T23:59:59+00:00",
+    )
+
+    assert abs(spend - _compute_cost("gpt-4o", 1000, 500)) < 1e-9
 
 
 @pytest.mark.asyncio

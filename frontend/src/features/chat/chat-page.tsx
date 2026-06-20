@@ -102,7 +102,7 @@ export function ChatPage() {
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       return wsRef.current;
     }
-    const ws = openChatStream(sessionId);
+    const ws = openChatStream(sessionId, projectId);
     wsRef.current = ws;
     ws.onmessage = (ev) => {
       try {

@@ -171,3 +171,52 @@ async def get_cost_summary(
         }
         for row in rows
     ]
+
+
+def current_month_bounds(now: datetime | None = None) -> tuple[str, str]:
+    """Return inclusive/exclusive UTC ISO bounds for the current calendar month."""
+    anchor = now or datetime.now(timezone.utc)
+    if anchor.tzinfo is None:
+        anchor = anchor.replace(tzinfo=timezone.utc)
+    anchor = anchor.astimezone(timezone.utc)
+    start = anchor.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if start.month == 12:
+        next_month = start.replace(year=start.year + 1, month=1)
+    else:
+        next_month = start.replace(month=start.month + 1)
+    return start.isoformat(), next_month.isoformat()
+
+
+async def get_project_spend_usd(
+    db_path: str,
+    *,
+    project_id: str,
+    from_ts: str | None = None,
+    to_ts: str | None = None,
+) -> float:
+    """Return total LLM spend for one project in a time range.
+
+    Defaults to the current UTC month, matching project budget enforcement.
+    """
+    if from_ts is None or to_ts is None:
+        month_start, month_end = current_month_bounds()
+        from_ts = from_ts or month_start
+        to_ts = to_ts or month_end
+
+    path = Path(db_path)
+    if not path.exists():
+        return 0.0
+
+    async with aiosqlite.connect(db_path) as conn:
+        await _ensure_schema(conn, db_path)
+        cursor = await conn.execute(
+            """
+            SELECT SUM(cost_usd)
+            FROM llm_usage
+            WHERE project_id = ? AND ts >= ? AND ts < ?
+            """,
+            (project_id, from_ts, to_ts),
+        )
+        row = await cursor.fetchone()
+
+    return float(row[0] or 0.0)

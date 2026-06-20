@@ -14,6 +14,7 @@ export async function getProject(id: string): Promise<Project> {
 export async function createProject(body: {
   name: string;
   description?: string;
+  monthly_budget_usd?: number;
 }): Promise<Project> {
   const res = await http.post<Project>("/projects", body);
   return res.data;
@@ -24,6 +25,18 @@ export async function updateProject(
   body: { name?: string; description?: string },
 ): Promise<Project> {
   const res = await http.patch<Project>(`/projects/${id}`, body);
+  return res.data;
+}
+
+export async function updateProjectBudget(
+  id: string,
+  body: {
+    monthly_budget_usd: number;
+    budget_override_usd?: number | null;
+    budget_override_until?: string | null;
+  },
+): Promise<Project> {
+  const res = await http.patch<Project>(`/projects/${id}/budget`, body);
   return res.data;
 }
 

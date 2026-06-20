@@ -31,6 +31,8 @@ class AgentContext:
     session_id: str
     project_id: str | None = None
     config: dict[str, Any] | None = None
+    settings: Any | None = None
+    project_repo: Any | None = None
     # Optional EventBroker — when set, per-agent start/done/error events are
     # published to the session SSE stream so the frontend can track progress.
     event_broker: Any | None = field(default=None, compare=False)
@@ -62,6 +64,15 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
         except Exception:  # noqa: BLE001
             pass
 
+    async def _enforce_budget(self) -> None:
+        from ai_testplan_generator.telemetry.budget import enforce_project_llm_budget
+
+        await enforce_project_llm_budget(
+            settings=self.ctx.settings,
+            project_repo=self.ctx.project_repo,
+            project_id=self.ctx.project_id,
+        )
+
     async def invoke(self, inp: TIn) -> TOut:
         import time as _time
 
@@ -71,51 +82,76 @@ class BaseAgent(ABC, Generic[TIn, TOut]):
         _t0 = _time.perf_counter()
         _outcome = "success"
 
-        with _tracer.start_as_current_span(f"agent.{self.name}") as _span:
-            _span.set_attribute("agent.name", self.name)
-            _span.set_attribute("session_id", self.ctx.session_id)
+        context_keys: list[str] = []
+        try:
+            from structlog.contextvars import bind_contextvars
+
+            values: dict[str, str] = {"session_id": self.ctx.session_id}
             if self.ctx.project_id is not None:
-                _span.set_attribute("project_id", self.ctx.project_id)
+                values["project_id"] = self.ctx.project_id
+            bind_contextvars(**values)
+            context_keys = list(values)
+        except Exception:  # noqa: BLE001
+            context_keys = []
+
+        try:
+            await self._enforce_budget()
+
+            with _tracer.start_as_current_span(f"agent.{self.name}") as _span:
+                _span.set_attribute("agent.name", self.name)
+                _span.set_attribute("session_id", self.ctx.session_id)
+                if self.ctx.project_id is not None:
+                    _span.set_attribute("project_id", self.ctx.project_id)
+
+                await self.ctx.memory.log_event(
+                    self.ctx.session_id,
+                    actor=self.name,
+                    kind="agent_start",
+                    content=f"{self.name} invoked",
+                )
+                await self._publish("agent_start", f"{self.name} started")
+                try:
+                    out = await self.run(inp)
+                except Exception as e:
+                    _log.exception("agent_failed", agent=self.name, error=str(e))
+                    _outcome = "error"
+                    _span.record_exception(e)
+                    await self.ctx.memory.log_event(
+                        self.ctx.session_id,
+                        actor=self.name,
+                        kind="agent_error",
+                        content=str(e),
+                    )
+                    await self._publish("agent_error", str(e))
+                    raise
+                finally:
+                    _elapsed = _time.perf_counter() - _t0
+                    try:
+                        from ai_testplan_generator.telemetry import metrics as _m
+
+                        if _m._registry is not None:
+                            _m.agent_runs_total().labels(
+                                agent=self.name, outcome=_outcome
+                            ).inc()
+                            _m.agent_duration_seconds().labels(agent=self.name).observe(
+                                _elapsed
+                            )
+                    except Exception:  # noqa: BLE001
+                        pass
 
             await self.ctx.memory.log_event(
                 self.ctx.session_id,
                 actor=self.name,
-                kind="agent_start",
-                content=f"{self.name} invoked",
+                kind="agent_done",
+                content=f"{self.name} returned",
             )
-            await self._publish("agent_start", f"{self.name} started")
-            try:
-                out = await self.run(inp)
-            except Exception as e:
-                _log.exception("agent_failed", agent=self.name, error=str(e))
-                _outcome = "error"
-                _span.record_exception(e)
-                await self.ctx.memory.log_event(
-                    self.ctx.session_id,
-                    actor=self.name,
-                    kind="agent_error",
-                    content=str(e),
-                )
-                await self._publish("agent_error", str(e))
-                raise
-            finally:
-                _elapsed = _time.perf_counter() - _t0
+            await self._publish("agent_done", f"{self.name} done")
+            return out  # type: ignore[return-value]
+        finally:
+            if context_keys:
                 try:
-                    from ai_testplan_generator.telemetry import metrics as _m
+                    from structlog.contextvars import unbind_contextvars
 
-                    if _m._registry is not None:
-                        _m.agent_runs_total().labels(
-                            agent=self.name, outcome=_outcome
-                        ).inc()
-                        _m.agent_duration_seconds().labels(agent=self.name).observe(_elapsed)
+                    unbind_contextvars(*context_keys)
                 except Exception:  # noqa: BLE001
                     pass
-
-        await self.ctx.memory.log_event(
-            self.ctx.session_id,
-            actor=self.name,
-            kind="agent_done",
-            content=f"{self.name} returned",
-        )
-        await self._publish("agent_done", f"{self.name} done")
-        return out  # type: ignore[return-value]

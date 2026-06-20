@@ -11,22 +11,26 @@ DELETE /projects/{id}/members/{user_id}    remove member
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.api.deps import get_current_user, get_project_repo
-from ai_testplan_generator.api.errors import ConflictError, NotFoundError
+from ai_testplan_generator.api.deps import get_current_user, get_project_repo, get_settings
+from ai_testplan_generator.api.errors import NotFoundError, ValidationError
 from ai_testplan_generator.api.security.rbac import require
+from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.projects import (
+    DEFAULT_MONTHLY_BUDGET_USD,
     Project,
     ProjectMember,
     ProjectRepository,
     ProjectRole,
 )
 from ai_testplan_generator.domain.users import User
+from ai_testplan_generator.telemetry.cost import get_project_spend_usd
 
 _log = structlog.get_logger(__name__)
 
@@ -40,6 +44,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class CreateProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
+    monthly_budget_usd: float = Field(default=DEFAULT_MONTHLY_BUDGET_USD, ge=0)
     # Deprecated input kept for old clients; the server always uses current_user.id.
     owner_id: str | None = None
 
@@ -54,6 +59,12 @@ class AddMemberRequest(BaseModel):
     role: ProjectRole = ProjectRole.VIEWER
 
 
+class UpdateProjectBudgetRequest(BaseModel):
+    monthly_budget_usd: float = Field(ge=0)
+    budget_override_usd: float | None = Field(default=None, ge=0)
+    budget_override_until: str | None = None
+
+
 class ProjectResponse(BaseModel):
     id: str
     name: str
@@ -61,9 +72,15 @@ class ProjectResponse(BaseModel):
     owner_id: str
     created_at: str
     archived_at: str | None = None
+    monthly_budget_usd: float
+    budget_override_until: str | None = None
+    budget_override_usd: float | None = None
+    current_month_spend_usd: float = 0.0
 
     @classmethod
-    def from_project(cls, p: Project) -> "ProjectResponse":
+    def from_project(
+        cls, p: Project, *, current_month_spend_usd: float = 0.0
+    ) -> "ProjectResponse":
         return cls(
             id=p.id,
             name=p.name,
@@ -71,6 +88,14 @@ class ProjectResponse(BaseModel):
             owner_id=p.owner_id,
             created_at=p.created_at.isoformat(),
             archived_at=p.archived_at.isoformat() if p.archived_at else None,
+            monthly_budget_usd=p.monthly_budget_usd,
+            budget_override_until=(
+                p.budget_override_until.isoformat()
+                if p.budget_override_until
+                else None
+            ),
+            budget_override_usd=p.budget_override_usd,
+            current_month_spend_usd=current_month_spend_usd,
         )
 
 
@@ -95,6 +120,23 @@ class ProjectListResponse(BaseModel):
     total: int = 0
 
 
+async def _project_response(p: Project, settings: Settings) -> ProjectResponse:
+    spend = await get_project_spend_usd(settings.app_db_path, project_id=p.id)
+    return ProjectResponse.from_project(p, current_month_spend_usd=spend)
+
+
+def _parse_override_until(value: str | None) -> datetime | None:
+    if value is None:
+        return None
+    try:
+        override_until = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError as exc:
+        raise ValidationError("budget_override_until must be an ISO-8601 datetime.") from exc
+    if override_until.tzinfo is None:
+        override_until = override_until.replace(tzinfo=timezone.utc)
+    return override_until.astimezone(timezone.utc)
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -104,9 +146,13 @@ async def create_project(
     body: CreateProjectRequest,
     current_user: Annotated[User, Depends(get_current_user)],
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ProjectResponse:
     proj = await repo.create_project(
-        name=body.name, description=body.description, owner_id=current_user.id
+        name=body.name,
+        description=body.description,
+        owner_id=current_user.id,
+        monthly_budget_usd=body.monthly_budget_usd,
     )
     await repo.add_member(proj.id, current_user.id, ProjectRole.OWNER)
     _log.info(
@@ -115,13 +161,14 @@ async def create_project(
         name=proj.name,
         owner_id=current_user.id,
     )
-    return ProjectResponse.from_project(proj)
+    return await _project_response(proj, settings)
 
 
 @router.get("", response_model=ProjectListResponse, summary="List projects")
 async def list_projects(
     current_user: Annotated[User, Depends(get_current_user)],
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
     limit: int = 50,
     offset: int = 0,
     include_archived: bool = False,
@@ -137,8 +184,10 @@ async def list_projects(
             limit=limit,
             offset=offset,
         )
-    return ProjectListResponse(items=[ProjectResponse.from_project(p) for p in items],
-                               total=len(items))
+    return ProjectListResponse(
+        items=[await _project_response(p, settings) for p in items],
+        total=len(items),
+    )
 
 
 @router.get(
@@ -150,11 +199,12 @@ async def list_projects(
 async def get_project(
     project_id: str,
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ProjectResponse:
     proj = await repo.get_project(project_id)
     if proj is None:
         raise NotFoundError(f"Project '{project_id}' not found.")
-    return ProjectResponse.from_project(proj)
+    return await _project_response(proj, settings)
 
 
 @router.patch(
@@ -167,13 +217,42 @@ async def update_project(
     project_id: str,
     body: UpdateProjectRequest,
     repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> ProjectResponse:
     proj = await repo.update_project(
         project_id, name=body.name, description=body.description
     )
     if proj is None:
         raise NotFoundError(f"Project '{project_id}' not found.")
-    return ProjectResponse.from_project(proj)
+    return await _project_response(proj, settings)
+
+
+@router.patch(
+    "/{project_id}/budget",
+    response_model=ProjectResponse,
+    summary="Update project LLM budget",
+    dependencies=[Depends(require("project.admin"))],
+)
+async def update_project_budget(
+    project_id: str,
+    body: UpdateProjectBudgetRequest,
+    repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> ProjectResponse:
+    if (body.budget_override_usd is None) != (body.budget_override_until is None):
+        raise ValidationError(
+            "budget_override_usd and budget_override_until must be set together."
+        )
+    override_until = _parse_override_until(body.budget_override_until)
+    proj = await repo.update_project_budget(
+        project_id,
+        monthly_budget_usd=body.monthly_budget_usd,
+        budget_override_usd=body.budget_override_usd,
+        budget_override_until=override_until,
+    )
+    if proj is None:
+        raise NotFoundError(f"Project '{project_id}' not found.")
+    return await _project_response(proj, settings)
 
 
 @router.delete(

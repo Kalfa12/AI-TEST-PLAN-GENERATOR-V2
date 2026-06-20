@@ -32,6 +32,7 @@ class Brain:
     # Optional event broker — injected by the API layer so agents can
     # publish per-step SSE events to the frontend.
     event_broker: Any | None = None
+    project_repo: Any | None = None
 
     def project_kb(self, project_id: str) -> ProjectKnowledgeBase:
         return ProjectKnowledgeBase(self.ingestion, project_id=project_id)
@@ -42,6 +43,8 @@ class Brain:
             memory=self.memory,
             session_id=session_id,
             project_id=project_id,
+            settings=self.settings,
+            project_repo=self.project_repo,
             event_broker=self.event_broker,
         )
 

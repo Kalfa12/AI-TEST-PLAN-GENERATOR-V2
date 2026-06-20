@@ -51,10 +51,11 @@ export interface StreamingMessage {
   onError: (err: string) => void;
 }
 
-export function openChatStream(sessionId: string): WebSocket {
+export function openChatStream(sessionId: string, projectId?: string): WebSocket {
   const tokens = readTokens();
   const params = new URLSearchParams();
   if (tokens) params.set("token", tokens.access);
+  if (projectId) params.set("project_id", projectId);
   const url = `${wsBaseURL}/chat/${encodeURIComponent(sessionId)}/stream${
     params.toString() ? `?${params}` : ""
   }`;

@@ -94,6 +94,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         from ai_testplan_generator.domain.projects import ProjectRepository
 
         project_repo = await ProjectRepository.create(db_path=cfg.app_db_path)
+        brain.project_repo = project_repo
 
         # Build user repository (same SQLite file, separate connection).
         from ai_testplan_generator.domain.users import UserRepository

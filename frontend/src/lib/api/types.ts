@@ -26,6 +26,10 @@ export interface Project {
   created_at: string;
   archived_at?: string | null;
   owner_id?: string | null;
+  monthly_budget_usd: number;
+  budget_override_until?: string | null;
+  budget_override_usd?: number | null;
+  current_month_spend_usd: number;
 }
 
 export interface ProjectListResponse {

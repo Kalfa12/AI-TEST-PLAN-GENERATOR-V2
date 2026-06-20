@@ -18,6 +18,8 @@ import structlog
 
 _log = structlog.get_logger(__name__)
 
+DEFAULT_MONTHLY_BUDGET_USD = 50.0
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
     id          TEXT PRIMARY KEY,
@@ -25,7 +27,10 @@ CREATE TABLE IF NOT EXISTS projects (
     description TEXT NOT NULL DEFAULT '',
     owner_id    TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL,
-    archived_at TEXT
+    archived_at TEXT,
+    monthly_budget_usd REAL NOT NULL DEFAULT 50.0,
+    budget_override_until TEXT,
+    budget_override_usd REAL
 );
 CREATE TABLE IF NOT EXISTS project_members (
     project_id  TEXT NOT NULL REFERENCES projects(id),
@@ -54,6 +59,9 @@ class Project:
     owner_id: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     archived_at: datetime | None = None
+    monthly_budget_usd: float = DEFAULT_MONTHLY_BUDGET_USD
+    budget_override_until: datetime | None = None
+    budget_override_usd: float | None = None
 
     @property
     def is_archived(self) -> bool:
@@ -89,6 +97,7 @@ class ProjectRepository:
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
         await self._conn.executescript(_SCHEMA)
+        await self._ensure_budget_columns()
         await self._conn.commit()
         _log.info("project_repo_init", db_path=path_str)
 
@@ -97,24 +106,64 @@ class ProjectRepository:
             raise RuntimeError("ProjectRepository not initialised — call create() first")
         return self._conn
 
+    async def _ensure_budget_columns(self) -> None:
+        async with self._db().execute("PRAGMA table_info(projects)") as cur:
+            rows = await cur.fetchall()
+        columns = {row[1] for row in rows}
+        migrations = []
+        if "monthly_budget_usd" not in columns:
+            migrations.append(
+                "ALTER TABLE projects ADD COLUMN monthly_budget_usd REAL NOT NULL DEFAULT 50.0"
+            )
+        if "budget_override_until" not in columns:
+            migrations.append("ALTER TABLE projects ADD COLUMN budget_override_until TEXT")
+        if "budget_override_usd" not in columns:
+            migrations.append("ALTER TABLE projects ADD COLUMN budget_override_usd REAL")
+        for sql in migrations:
+            await self._db().execute(sql)
+
     # ------------------------------------------------------------------
     # Projects
     # ------------------------------------------------------------------
 
     async def create_project(
-        self, name: str, description: str = "", owner_id: str = ""
+        self,
+        name: str,
+        description: str = "",
+        owner_id: str = "",
+        monthly_budget_usd: float = DEFAULT_MONTHLY_BUDGET_USD,
     ) -> Project:
-        proj = Project(name=name, description=description, owner_id=owner_id)
+        proj = Project(
+            name=name,
+            description=description,
+            owner_id=owner_id,
+            monthly_budget_usd=monthly_budget_usd,
+        )
         await self._db().execute(
-            "INSERT INTO projects (id, name, description, owner_id, created_at) VALUES (?,?,?,?,?)",
-            (proj.id, proj.name, proj.description, proj.owner_id, proj.created_at.isoformat()),
+            """
+            INSERT INTO projects
+                (id, name, description, owner_id, created_at, monthly_budget_usd)
+            VALUES (?,?,?,?,?,?)
+            """,
+            (
+                proj.id,
+                proj.name,
+                proj.description,
+                proj.owner_id,
+                proj.created_at.isoformat(),
+                proj.monthly_budget_usd,
+            ),
         )
         await self._db().commit()
         return proj
 
     async def get_project(self, project_id: str) -> Project | None:
         async with self._db().execute(
-            "SELECT id,name,description,owner_id,created_at,archived_at FROM projects WHERE id=?",
+            """
+            SELECT id,name,description,owner_id,created_at,archived_at,
+                   monthly_budget_usd,budget_override_until,budget_override_usd
+            FROM projects WHERE id=?
+            """,
             (project_id,),
         ) as cur:
             row = await cur.fetchone()
@@ -127,7 +176,10 @@ class ProjectRepository:
         limit: int = 50,
         offset: int = 0,
     ) -> list[Project]:
-        sql = "SELECT id,name,description,owner_id,created_at,archived_at FROM projects"
+        sql = (
+            "SELECT id,name,description,owner_id,created_at,archived_at,"
+            "monthly_budget_usd,budget_override_until,budget_override_usd FROM projects"
+        )
         params: tuple[Any, ...] = ()
         if not include_archived:
             sql += " WHERE archived_at IS NULL"
@@ -146,7 +198,8 @@ class ProjectRepository:
         offset: int = 0,
     ) -> list[Project]:
         sql = (
-            "SELECT p.id,p.name,p.description,p.owner_id,p.created_at,p.archived_at "
+            "SELECT p.id,p.name,p.description,p.owner_id,p.created_at,p.archived_at,"
+            "p.monthly_budget_usd,p.budget_override_until,p.budget_override_usd "
             "FROM projects p "
             "JOIN project_members pm ON pm.project_id = p.id "
             "WHERE pm.user_id=?"
@@ -179,6 +232,36 @@ class ProjectRepository:
         await self._db().commit()
         proj.name = new_name
         proj.description = new_desc
+        return proj
+
+    async def update_project_budget(
+        self,
+        project_id: str,
+        *,
+        monthly_budget_usd: float,
+        budget_override_until: datetime | None = None,
+        budget_override_usd: float | None = None,
+    ) -> Project | None:
+        proj = await self.get_project(project_id)
+        if proj is None:
+            return None
+        await self._db().execute(
+            """
+            UPDATE projects
+            SET monthly_budget_usd=?, budget_override_until=?, budget_override_usd=?
+            WHERE id=?
+            """,
+            (
+                monthly_budget_usd,
+                budget_override_until.isoformat() if budget_override_until else None,
+                budget_override_usd,
+                project_id,
+            ),
+        )
+        await self._db().commit()
+        proj.monthly_budget_usd = monthly_budget_usd
+        proj.budget_override_until = budget_override_until
+        proj.budget_override_usd = budget_override_usd
         return proj
 
     async def archive_project(self, project_id: str) -> bool:
@@ -244,9 +327,19 @@ class ProjectRepository:
 # ------------------------------------------------------------------
 
 def _row_to_project(
-    row: tuple[str, str, str, str, str, str | None],
+    row: tuple[str, str, str, str, str, str | None, float, str | None, float | None],
 ) -> Project:
-    pid, name, desc, owner_id, created_at, archived_at = row
+    (
+        pid,
+        name,
+        desc,
+        owner_id,
+        created_at,
+        archived_at,
+        monthly_budget_usd,
+        budget_override_until,
+        budget_override_usd,
+    ) = row
     return Project(
         id=pid,
         name=name,
@@ -254,6 +347,15 @@ def _row_to_project(
         owner_id=owner_id,
         created_at=datetime.fromisoformat(created_at),
         archived_at=datetime.fromisoformat(archived_at) if archived_at else None,
+        monthly_budget_usd=float(monthly_budget_usd),
+        budget_override_until=(
+            datetime.fromisoformat(budget_override_until)
+            if budget_override_until
+            else None
+        ),
+        budget_override_usd=(
+            float(budget_override_usd) if budget_override_usd is not None else None
+        ),
     )
 
 
