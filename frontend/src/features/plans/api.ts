@@ -3,6 +3,7 @@ import type {
   CheckpointResponse,
   CoverageMatrixResponse,
   CreatePlanAccepted,
+  GenerateRequirementTestCaseResponse,
   JobStatus,
   PlanListItem,
   PlanListResponse,
@@ -51,6 +52,18 @@ export async function getPlanCoverage(
 ): Promise<CoverageMatrixResponse> {
   const res = await http.get<CoverageMatrixResponse>(
     `/projects/${projectId}/plans/${planId}/coverage`,
+  );
+  return res.data;
+}
+
+export async function generateRequirementTestCase(
+  projectId: string,
+  planId: string,
+  requirementId: string,
+): Promise<GenerateRequirementTestCaseResponse> {
+  const res = await http.post<GenerateRequirementTestCaseResponse>(
+    `/projects/${projectId}/plans/${planId}/requirements/${requirementId}/test-case`,
+    {},
   );
   return res.data;
 }

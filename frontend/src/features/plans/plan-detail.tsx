@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import {
+  useGenerateRequirementTestCase,
   usePlan,
   usePlanCoverage,
   useSchedulePlan,
@@ -37,6 +38,7 @@ export function PlanDetailPage() {
   const resources = useResources(projectId);
   const schedule = useSchedulePlan(projectId, planId);
   const updateStatus = useUpdateTestCaseStatus(projectId, planId);
+  const generateRequirementTest = useGenerateRequirementTestCase(projectId, planId);
   const toast = useToast();
 
   const [detail, setDetail] = useState<"summary" | "full">("full");
@@ -88,6 +90,23 @@ export function PlanDetailPage() {
     } catch (e) {
       toast.push({
         title: "Schedule failed",
+        description: (e as Error).message,
+        tone: "error",
+      });
+    }
+  };
+
+  const onGenerateRequirementTest = async (requirementId: string) => {
+    try {
+      const reply = await generateRequirementTest.mutateAsync(requirementId);
+      toast.push({
+        title: "Test case generated",
+        description: reply.test_case.title,
+        tone: "success",
+      });
+    } catch (e) {
+      toast.push({
+        title: "Generation failed",
         description: (e as Error).message,
         tone: "error",
       });
@@ -210,7 +229,15 @@ export function PlanDetailPage() {
               ) : !coverage.data || Object.keys(coverage.data.matrix).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No coverage data available.</p>
               ) : (
-                <CoverageList matrix={coverage.data.matrix} />
+                <CoverageList
+                  matrix={coverage.data.matrix}
+                  onGenerate={onGenerateRequirementTest}
+                  generatingRequirementId={
+                    generateRequirementTest.isPending
+                      ? generateRequirementTest.variables
+                      : null
+                  }
+                />
               )}
             </CardBody>
           </Card>
@@ -253,7 +280,15 @@ export function PlanDetailPage() {
   );
 }
 
-function CoverageList({ matrix }: { matrix: Record<string, string[]> }) {
+function CoverageList({
+  matrix,
+  onGenerate,
+  generatingRequirementId,
+}: {
+  matrix: Record<string, string[]>;
+  onGenerate: (requirementId: string) => Promise<void>;
+  generatingRequirementId?: string | null;
+}) {
   const stats = useMemo(() => {
     const total = Object.keys(matrix).length;
     const covered = Object.values(matrix).filter((v) => v.length > 0).length;
@@ -268,9 +303,22 @@ function CoverageList({ matrix }: { matrix: Record<string, string[]> }) {
         {Object.entries(matrix).map(([req, tcs]) => (
           <li key={req} className="flex items-center justify-between gap-2">
             <span className="font-mono text-xs">{req}</span>
-            <Badge tone={tcs.length > 0 ? "success" : "danger"}>
-              {tcs.length} TC
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge tone={tcs.length > 0 ? "success" : "danger"}>
+                {tcs.length} TC
+              </Badge>
+              {tcs.length === 0 && (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => onGenerate(req)}
+                  disabled={generatingRequirementId !== null && generatingRequirementId !== undefined}
+                >
+                  {generatingRequirementId === req ? "Generating..." : "Generate test"}
+                </Button>
+              )}
+            </div>
           </li>
         ))}
       </ul>

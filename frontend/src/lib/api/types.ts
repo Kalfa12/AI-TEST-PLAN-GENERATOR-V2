@@ -190,6 +190,13 @@ export interface CoverageMatrixResponse {
   matrix: Record<string, string[]>;
 }
 
+export interface GenerateRequirementTestCaseResponse {
+  plan_id: string;
+  requirement_id: string;
+  test_case: TestCaseSummary;
+  coverage_matrix: Record<string, string[]>;
+}
+
 export interface CreatePlanAccepted {
   job_id: string;
   session_id: string;

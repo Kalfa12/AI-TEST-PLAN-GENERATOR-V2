@@ -21,22 +21,28 @@ from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_brain,
     get_current_user,
+    get_defects,
     get_job_repo,
     get_job_queue,
     get_plans,
 )
-from ai_testplan_generator.api.errors import NotFoundError
+from ai_testplan_generator.api.errors import NotFoundError, ValidationError
 from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.api.schemas.plans import (
     CheckpointResponse,
     CoverageMatrixResponse,
     CreatePlanAccepted,
     CreatePlanRequest,
+    GenerateRequirementTestCaseRequest,
+    GenerateRequirementTestCaseResponse,
     PlanListItem,
     PlanListResponse,
     ResumeRequest,
+    TestCaseSummary,
     TestPlanSummary,
 )
+from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
+from ai_testplan_generator.agents.traceability import TraceabilityAgent
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
 from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.models import TestPlan
@@ -153,6 +159,93 @@ async def plan_coverage(
     if not any(matrix.values()) and plan.coverage_matrix:
         matrix = plan.coverage_matrix
     return CoverageMatrixResponse(plan_id=plan_id, matrix=matrix)
+
+
+@router.post(
+    "/projects/{project_id}/plans/{plan_id}/requirements/{requirement_id}/test-case",
+    response_model=GenerateRequirementTestCaseResponse,
+    summary="Generate one test case to repair requirement coverage",
+    dependencies=[Depends(require("plan.generate"))],
+)
+async def generate_requirement_test_case(
+    project_id: str,
+    plan_id: str,
+    requirement_id: str,
+    body: GenerateRequirementTestCaseRequest,
+    brain: Annotated[Brain, Depends(get_brain)],
+    plans: Annotated[dict[str, TestPlan], Depends(get_plans)],
+    defects: Annotated[dict[str, Any], Depends(get_defects)],
+    blob_store: Annotated[BlobStore, Depends(get_blob_store)],
+) -> GenerateRequirementTestCaseResponse:
+    plan = plans.get(plan_id) or await brain.memory.get_test_plan(plan_id)
+    if plan is None:
+        raise NotFoundError(f"Plan '{plan_id}' not found.")
+    if plan.project_id != project_id:
+        raise NotFoundError(f"Plan '{plan_id}' not found in project '{project_id}'.")
+
+    requirements = await brain.memory.get_requirements_for_project(project_id)
+    requirement = next((req for req in requirements if req.id == requirement_id), None)
+    if requirement is None:
+        raise NotFoundError(
+            f"Requirement '{requirement_id}' not found in project '{project_id}'."
+        )
+
+    ctx = brain.context(
+        session_id=f"repair_{uuid4().hex[:10]}",
+        project_id=project_id,
+    )
+    generator = TestGeneratorAgent(ctx)
+    feedback = [body.feedback] if body.feedback else []
+    generated = await generator.invoke(
+        TestGeneratorAgent.Input(
+            requirements=[requirement],
+            detail_level=plan.detail_level,
+            concurrency=1,
+            user_feedback=feedback,
+        )
+    )
+    if not generated.test_cases:
+        raise ValidationError(
+            f"Could not generate a test case for requirement '{requirement_id}'."
+        )
+
+    test_case = generated.test_cases[0]
+    plan.test_cases.append(test_case)
+
+    trace = await TraceabilityAgent(ctx).invoke(
+        TraceabilityAgent.Input(plan=plan, requirements=requirements)
+    )
+    plan.coverage_matrix = trace.coverage_matrix
+    await brain.memory.register_test_plan(plan)
+    plans[plan.id] = plan
+
+    defects.pop(plan.id, None)
+    try:
+        await blob_store.delete(f"projects/{project_id}/plans/{plan.id}.defects.json")
+    except Exception:
+        pass
+
+    return GenerateRequirementTestCaseResponse(
+        plan_id=plan.id,
+        requirement_id=requirement.id,
+        test_case=TestCaseSummary(
+            id=test_case.id,
+            title=test_case.title,
+            objective=test_case.objective,
+            requirement_ids=test_case.requirement_ids,
+            risk_level=test_case.risk_level,
+            risk_description=test_case.risk_description,
+            estimated_duration_minutes=test_case.estimated_duration_minutes,
+            assignee=test_case.assignee,
+            status=test_case.status,
+            status_note=test_case.status_note,
+            tags=test_case.tags,
+            source_evidence=[
+                ev.model_dump(mode="json") for ev in test_case.source_evidence
+            ],
+        ),
+        coverage_matrix=plan.coverage_matrix,
+    )
 
 
 @router.get(

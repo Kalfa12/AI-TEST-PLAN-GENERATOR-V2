@@ -66,18 +66,33 @@ class CoverageMatrixResponse(BaseModel):
     matrix: dict[str, list[str]] = Field(default_factory=dict)
 
 
+class GenerateRequirementTestCaseRequest(BaseModel):
+    feedback: str | None = Field(
+        default=None,
+        description="Optional instruction to steer the single-requirement repair.",
+    )
+
+
 class TestCaseSummary(BaseModel):
     id: str
     title: str
     objective: str
     requirement_ids: list[str] = Field(default_factory=list)
     risk_level: int
+    risk_description: str | None = None
     estimated_duration_minutes: int | None = None
     assignee: str | None = None
     status: TestCaseStatus = TestCaseStatus.NOT_STARTED
     status_note: str | None = None
     tags: list[str] = Field(default_factory=list)
     source_evidence: list[dict[str, object]] = Field(default_factory=list)
+
+
+class GenerateRequirementTestCaseResponse(BaseModel):
+    plan_id: str
+    requirement_id: str
+    test_case: TestCaseSummary
+    coverage_matrix: dict[str, list[str]] = Field(default_factory=dict)
 
 
 class TestPlanSummary(BaseModel):
@@ -107,6 +122,7 @@ class TestPlanSummary(BaseModel):
                     objective=tc.objective,
                     requirement_ids=tc.requirement_ids,
                     risk_level=tc.risk_level,
+                    risk_description=tc.risk_description,
                     estimated_duration_minutes=tc.estimated_duration_minutes,
                     assignee=tc.assignee,
                     status=tc.status,

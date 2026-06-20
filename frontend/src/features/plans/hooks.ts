@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   createPlan,
   deletePlan,
+  generateRequirementTestCase,
   getJobStatus,
   getPlan,
   getPlanCoverage,
@@ -43,6 +44,22 @@ export function usePlanCoverage(
     queryKey: ["plan-coverage", projectId, planId],
     queryFn: () => getPlanCoverage(projectId!, planId!),
     enabled: !!projectId && !!planId,
+  });
+}
+
+export function useGenerateRequirementTestCase(projectId: string, planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (requirementId: string) =>
+      generateRequirementTestCase(projectId, planId, requirementId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan", projectId, planId] });
+      qc.invalidateQueries({ queryKey: ["plan-coverage", projectId, planId] });
+      qc.invalidateQueries({ queryKey: ["plans", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-coverage", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-gaps", projectId] });
+      qc.invalidateQueries({ queryKey: ["plan-defects", projectId, planId] });
+    },
   });
 }
 
