@@ -1,5 +1,10 @@
 # Roadmap — ranked by product value
 
+> Coding agents should use
+> [`NEXT_PRODUCT_UPGRADES_ROADMAP.md`](NEXT_PRODUCT_UPGRADES_ROADMAP.md)
+> for phase-by-phase implementation instructions, code targets, acceptance
+> criteria, and tests. This file remains the higher-level product-value ranking.
+
 > Ranking is by **product value to the end customer**, not by how it looks on a portfolio.
 > Internship-polish items (LICENSE, screenshots, CI badges) are tracked at the bottom
 > for completeness but they don't move the product.
