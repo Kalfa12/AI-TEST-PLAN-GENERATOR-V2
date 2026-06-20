@@ -90,6 +90,8 @@ async def run_interactive(
     project_chunks: list[Chunk] = []
     for d in docs:
         project_chunks.extend(await brain.memory.get_chunks_for_document(d.id))
+    if not project_chunks:
+        raise RuntimeError("no chunks available for requirement extraction")
 
     # ---- step: analyst (no checkpoint, low value to gate)
     analyst = DocumentAnalystAgent(ctx)
@@ -105,6 +107,11 @@ async def run_interactive(
             )
         )
         state.requirements = out_e.requirements
+        if not state.requirements:
+            raise RuntimeError(
+                "requirement extraction produced no requirements; "
+                "cannot generate a grounded test plan"
+            )
         _update_partial_defects(state)
         directive = await _await_user(job, agent="extractor", state=state)
         if directive.action == "accept":
@@ -149,10 +156,6 @@ async def run_interactive(
                 user_feedback=feedback,
             )
         )
-        if not out_g.test_cases:
-            raise RuntimeError(
-                "generator produced no test cases (all LLM calls failed)"
-            )
         plan.test_cases = out_g.test_cases
         state.test_cases = out_g.test_cases
         _update_partial_defects(state)

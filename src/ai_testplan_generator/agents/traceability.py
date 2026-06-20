@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
-from ai_testplan_generator.models import Requirement, TestCase, TestPlan
+from ai_testplan_generator.models import Requirement, SourceEvidence, TestCase, TestPlan
 from ai_testplan_generator.models.traceability import TraceKind, TraceLink
 from ai_testplan_generator.prompts.library import TRACEABILITY_SYSTEM
 
@@ -87,6 +87,7 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
 
         weak_links: list[str] = []
         contradictions: list[str] = []
+        tc_by_id = {tc.id: tc for tc in inp.plan.test_cases}
         for tc_id, rep in results:
             if rep is None:
                 continue
@@ -95,6 +96,21 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
             if rep.contradictions:
                 contradictions.extend(f"{tc_id}: {c}" for c in rep.contradictions)
             for ch_id in rep.additional_chunk_ids:
+                chunks = await self.ctx.memory.get_chunks_by_ids([ch_id])
+                if chunks and tc_id in tc_by_id:
+                    ch = chunks[0]
+                    tc = tc_by_id[tc_id]
+                    if not any(ev.chunk_id == ch.id for ev in tc.source_evidence):
+                        tc.source_evidence.append(
+                            SourceEvidence(
+                                chunk_id=ch.id,
+                                document_id=ch.document_id,
+                                page_start=ch.page_start,
+                                page_end=ch.page_end,
+                                excerpt=ch.text[:500],
+                                relation="traceability",
+                            )
+                        )
                 self.ctx.memory.graph.add_link(
                     TraceLink(
                         kind=TraceKind.DERIVES_FROM,

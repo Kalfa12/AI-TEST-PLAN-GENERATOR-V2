@@ -19,6 +19,7 @@ from ai_testplan_generator.models import (
     AcceptanceCriterion,
     DetailLevel,
     Requirement,
+    SourceEvidence,
     TestCase,
     TestStep,
 )
@@ -34,6 +35,7 @@ class _GenInput(BaseModel):
 
 class _GenOutput(BaseModel):
     test_cases: list[TestCase]
+    warnings: list[str] = Field(default_factory=list)
 
 
 class _DraftStep(BaseModel):
@@ -90,8 +92,26 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
 
         results = await asyncio.gather(*[one(r) for r in inp.requirements])
         cases = [r for r in results if r is not None]
+        warnings = [
+            f"Failed to generate a valid test case for requirement {req.id}."
+            for req, result in zip(inp.requirements, results, strict=False)
+            if result is None
+        ]
+        if inp.requirements and not cases:
+            raise RuntimeError(
+                "generator produced no valid test cases for "
+                f"{len(inp.requirements)} requirement(s): "
+                + "; ".join(warnings)
+            )
+        if warnings:
+            await self.ctx.memory.log_event(
+                self.ctx.session_id,
+                actor=self.name,
+                kind="generation_warning",
+                content="\n".join(warnings),
+            )
         await self.ctx.memory.register_test_cases(cases)
-        return _GenOutput(test_cases=cases)
+        return _GenOutput(test_cases=cases, warnings=warnings)
 
     async def _generate_for_requirement(
         self,
@@ -109,12 +129,34 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
         )
 
         ctx_lines: list[str] = []
+        source_evidence: list[SourceEvidence] = []
         for ch in source_chunks:
             ctx_lines.append(f"[SOURCE:{ch.id} p.{ch.page_start}] {ch.text}")
+            source_evidence.append(
+                SourceEvidence(
+                    chunk_id=ch.id,
+                    document_id=ch.document_id,
+                    page_start=ch.page_start,
+                    page_end=ch.page_end,
+                    excerpt=ch.text[:700],
+                    relation="source",
+                )
+            )
         for ch in bundle.chunks:
             if ch.id in req.source_chunk_ids:
                 continue
             ctx_lines.append(f"[RELATED:{ch.id}] {ch.text[:500]}")
+            if len(source_evidence) < 5:
+                source_evidence.append(
+                    SourceEvidence(
+                        chunk_id=ch.id,
+                        document_id=ch.document_id,
+                        page_start=ch.page_start,
+                        page_end=ch.page_end,
+                        excerpt=ch.text[:500],
+                        relation="related",
+                    )
+                )
 
         feedback_block = ""
         if user_feedback:
@@ -187,4 +229,5 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
             dependencies=draft.dependencies,
             kpis=draft.kpis,
             tags=draft.tags,
+            source_evidence=source_evidence,
         )

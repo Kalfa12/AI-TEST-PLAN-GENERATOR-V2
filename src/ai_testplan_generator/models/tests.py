@@ -39,6 +39,19 @@ class TestStep(BaseModel):
     notes: str | None = None
 
 
+class SourceEvidence(BaseModel):
+    """Compact source citation stored on generated test cases."""
+
+    model_config = ConfigDict(frozen=True)
+
+    chunk_id: str
+    document_id: str
+    page_start: int | None = None
+    page_end: int | None = None
+    excerpt: str
+    relation: str = "source"
+
+
 class TestCase(BaseModel):
     """Single executable test derived from one or more requirements.
 
@@ -80,6 +93,7 @@ class TestCase(BaseModel):
     # Reviewer feedback loop data.
     review_notes: list[str] = Field(default_factory=list)
     revision: int = 0
+    source_evidence: list[SourceEvidence] = Field(default_factory=list)
 
 
 class TestPlan(BaseModel):

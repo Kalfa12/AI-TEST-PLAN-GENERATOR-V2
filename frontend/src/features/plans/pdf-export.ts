@@ -330,6 +330,18 @@ function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void
   field(c, "Objective: ", tc.objective);
   if (tc.risk_description) field(c, "Risk: ", tc.risk_description);
   field(c, "Requirements: ", tc.requirement_ids.join(", ") || "—");
+  if (tc.source_evidence && tc.source_evidence.length > 0) {
+    subheading(c, "Source evidence");
+    bulletList(
+      c,
+      tc.source_evidence.map((ev) => {
+        const page = ev.page_start
+          ? ` p.${ev.page_start}${ev.page_end && ev.page_end !== ev.page_start ? `-${ev.page_end}` : ""}`
+          : "";
+        return `${ev.relation}: ${ev.document_id} / ${ev.chunk_id}${page} - ${ev.excerpt}`;
+      }),
+    );
+  }
   if (tc.testing_types && tc.testing_types.length > 0) {
     field(c, "Testing types: ", tc.testing_types.join(", "));
   }

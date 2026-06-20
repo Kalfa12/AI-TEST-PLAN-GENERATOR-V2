@@ -40,6 +40,35 @@ from ai_testplan_generator.agents.base import AgentContext
 from ai_testplan_generator.models import Chunk
 
 
+def _generator_feedback(state: AutonomousState) -> list[str]:
+    """Translate prior review/trace/defect findings into generator instructions."""
+    feedback: list[str] = []
+    if state.review_report is not None:
+        for finding in state.review_report.findings:
+            target = finding.test_case_id or finding.requirement_id or "plan"
+            feedback.append(
+                f"Reviewer {finding.severity} finding on {target}: "
+                f"{finding.summary} Suggestion: {finding.suggestion}"
+            )
+    if state.trace_report is not None:
+        for tc_id in state.trace_report.weak_links:
+            feedback.append(
+                f"Traceability weak link: revise test case {tc_id} so its steps "
+                "and acceptance criteria directly verify its claimed requirement."
+            )
+        for contradiction in state.trace_report.contradictions:
+            feedback.append(f"Traceability contradiction: {contradiction}")
+    if state.defect_report is not None:
+        for defect in state.defect_report.defects:
+            feedback.append(
+                f"Defect {defect.severity} on {defect.target_kind} "
+                f"{defect.target_id}: {defect.evidence} "
+                f"Suggestion: {defect.suggestion or 'Correct the defect.'}"
+            )
+    feedback.extend(state.user_feedback.get("generator", []))
+    return feedback
+
+
 def build_autonomous_graph(ctx: AgentContext) -> Any:
     """Compile the autonomous multi-agent graph.
 
@@ -74,9 +103,18 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
         project_chunks: list[Chunk] = []
         for doc in state.documents:
             project_chunks.extend(await ctx.memory.get_chunks_for_document(doc.id))
+        if not project_chunks:
+            return {"error": "no chunks available for requirement extraction"}
         out = await extractor.invoke(
             RequirementExtractorAgent.Input(chunks=project_chunks)
         )
+        if not out.requirements:
+            return {
+                "error": (
+                    "requirement extraction produced no requirements; "
+                    "cannot generate a grounded test plan"
+                )
+            }
         return {"requirements": out.requirements}
 
     async def _requirement_reviewer(state: AutonomousState) -> dict[str, Any]:
@@ -100,11 +138,11 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
             return {"error": "generator called without a plan"}
         out = await generator.invoke(
             TestGeneratorAgent.Input(
-                requirements=state.requirements, detail_level=state.detail_level
+                requirements=state.requirements,
+                detail_level=state.detail_level,
+                user_feedback=_generator_feedback(state),
             )
         )
-        if not out.test_cases:
-            return {"error": "generator failed to produce any valid test cases (all LLM calls failed or timed out)"}
         state.plan.test_cases = out.test_cases
         # Always clear stale traceability/review/defect state so the orchestrator
         # is forced back through traceability → reviewer → defect_aggregator on

@@ -83,6 +83,15 @@ export interface AcceptanceCriterion {
   tolerance?: string | null;
 }
 
+export interface SourceEvidence {
+  chunk_id: string;
+  document_id: string;
+  page_start?: number | null;
+  page_end?: number | null;
+  excerpt: string;
+  relation: string;
+}
+
 export interface TestCaseSummary {
   id: string;
   title: string;
@@ -100,6 +109,7 @@ export interface TestCaseSummary {
   assignee?: string | null;
   steps?: TestStep[];
   acceptance_criteria?: AcceptanceCriterion[];
+  source_evidence?: SourceEvidence[];
 }
 
 export interface TestPlanSummary {

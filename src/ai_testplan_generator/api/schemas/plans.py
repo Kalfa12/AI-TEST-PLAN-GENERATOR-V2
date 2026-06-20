@@ -74,6 +74,7 @@ class TestCaseSummary(BaseModel):
     risk_level: int
     estimated_duration_minutes: int | None = None
     tags: list[str] = Field(default_factory=list)
+    source_evidence: list[dict[str, object]] = Field(default_factory=list)
 
 
 class TestPlanSummary(BaseModel):
@@ -105,6 +106,9 @@ class TestPlanSummary(BaseModel):
                     risk_level=tc.risk_level,
                     estimated_duration_minutes=tc.estimated_duration_minutes,
                     tags=tc.tags,
+                    source_evidence=[
+                        ev.model_dump(mode="json") for ev in tc.source_evidence
+                    ],
                 )
                 for tc in plan.test_cases
             ],

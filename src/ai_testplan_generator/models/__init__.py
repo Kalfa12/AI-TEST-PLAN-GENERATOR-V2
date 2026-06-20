@@ -17,6 +17,7 @@ from ai_testplan_generator.models.requirements import Requirement, RequirementKi
 from ai_testplan_generator.models.tests import (
     AcceptanceCriterion,
     DetailLevel,
+    SourceEvidence,
     TestCase,
     TestPlan,
     TestStep,
@@ -40,6 +41,7 @@ __all__ = [
     "RequirementKind",
     "Resource",
     "Section",
+    "SourceEvidence",
     "TestCase",
     "TestPlan",
     "TestSchedule",
