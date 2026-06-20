@@ -147,8 +147,9 @@ async def run_autonomous_interactive(
     """Run the user-gated autonomous pipeline.
 
     Pauses at extractor / architect / generator and waits for the resume
-    endpoint to inject directives onto the Job. Only works in-process
-    (FakeJobQueue) — the paused state is held in memory.
+    endpoint to inject directives onto the Job. A live in-process task is
+    still required to continue immediately, but paused checkpoint state is
+    also written to the durable job repository.
     """
     from ai_testplan_generator.models import DetailLevel
     from ai_testplan_generator.pipelines.interactive_run import (
@@ -162,6 +163,7 @@ async def run_autonomous_interactive(
     plans: dict[str, Any] = ctx.get("plans", {})
     project_plans: dict[str, list[str]] = ctx.get("project_plans", {})
     defects_index: dict[str, Any] = ctx.get("defects", {})
+    job_repo = ctx.get("job_repo")
     job_id: str = ctx.get("job_id", "unknown")
     jobs_index: dict[str, Any] = ctx.get("jobs_index", {})
 
@@ -189,6 +191,7 @@ async def run_autonomous_interactive(
             detail_level=DetailLevel(detail_level),
             max_revision_rounds=max_revision_rounds,
             session_id=session_id,
+            job_repo=job_repo,
         )
         plan = result["plan"]
         await brain.memory.register_test_plan(plan)

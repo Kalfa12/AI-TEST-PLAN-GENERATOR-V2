@@ -5,10 +5,9 @@ pausing for user feedback at three checkpoints: extractor, architect,
 generator. The `Job` object owns the pause/resume signalling; the
 HTTP layer (`/jobs/{id}/checkpoint`, `/jobs/{id}/resume`) drives it.
 
-This pipeline only works with `FakeJobQueue` because the run task
-must keep the AutonomousState in process memory between checkpoints.
-For ARQ deployment, paused state would have to live in a persistent
-checkpointer (Redis/Postgres) — out of scope for v1.
+This pipeline still needs a live in-process task to continue immediately,
+but every checkpoint is also written to the durable job repository so the
+API can inspect paused state after an application restart.
 """
 
 from __future__ import annotations
@@ -31,6 +30,7 @@ from ai_testplan_generator.agents.test_architect import TestArchitectAgent
 from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
 from ai_testplan_generator.agents.traceability import TraceabilityAgent
 from ai_testplan_generator.api.jobs import Job, JobStatus
+from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.models import Chunk, DefectReport, DetailLevel, TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.quality import check_requirements, check_test_plan
@@ -63,6 +63,7 @@ async def run_interactive(
     detail_level: DetailLevel,
     max_revision_rounds: int,
     session_id: str,
+    job_repo: JobRepository | None = None,
 ) -> dict[str, Any]:
     """Execute the autonomous pipeline with user-gated checkpoints.
 
@@ -113,7 +114,7 @@ async def run_interactive(
                 "cannot generate a grounded test plan"
             )
         _update_partial_defects(state)
-        directive = await _await_user(job, agent="extractor", state=state)
+        directive = await _await_user(job, agent="extractor", state=state, job_repo=job_repo)
         if directive.action == "accept":
             break
         if directive.action == "abort":
@@ -135,7 +136,7 @@ async def run_interactive(
             )
         )
         state.plan = plan
-        directive = await _await_user(job, agent="architect", state=state)
+        directive = await _await_user(job, agent="architect", state=state, job_repo=job_repo)
         if directive.action == "accept":
             break
         if directive.action == "abort":
@@ -159,7 +160,7 @@ async def run_interactive(
         plan.test_cases = out_g.test_cases
         state.test_cases = out_g.test_cases
         _update_partial_defects(state)
-        directive = await _await_user(job, agent="generator", state=state)
+        directive = await _await_user(job, agent="generator", state=state, job_repo=job_repo)
         if directive.action == "accept":
             break
         if directive.action == "abort":
@@ -205,7 +206,11 @@ async def run_interactive(
 
 
 async def _await_user(
-    job: Job, *, agent: str, state: AutonomousState
+    job: Job,
+    *,
+    agent: str,
+    state: AutonomousState,
+    job_repo: JobRepository | None = None,
 ) -> ResumeDirective:
     """Pause the run task and wait for the resume endpoint to fire."""
     # Reset the signal each pause so previous resume doesn't leak through.
@@ -214,9 +219,19 @@ async def _await_user(
     job.resume_signal = signal
     job._resume_directive = directive_holder  # type: ignore[attr-defined]
     job.pause(agent=agent, state=state)
+    if job_repo is not None:
+        await job_repo.save_checkpoint(
+            job=job,
+            paused_at=agent,
+            state=state.model_dump(mode="json"),
+            project_id=state.project_id,
+        )
     _log.info("interactive_pause", job_id=job.id, agent=agent)
     await signal.wait()
     job.resume()
+    if job_repo is not None:
+        await job_repo.delete_checkpoint(job.id)
+        await job_repo.save_job(job, project_id=state.project_id)
     return directive_holder.get(
         "directive", ResumeDirective(action="accept")
     )

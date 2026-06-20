@@ -17,6 +17,7 @@ from typing import Any, Protocol, runtime_checkable
 import structlog
 
 from ai_testplan_generator.api.jobs import Job, JobStatus
+from ai_testplan_generator.domain.jobs import JobRepository
 
 _log = structlog.get_logger(__name__)
 
@@ -49,10 +50,11 @@ class JobQueueProtocol(Protocol):
 class JobQueue:
     """ARQ-backed job queue for production use."""
 
-    def __init__(self, redis_pool: Any) -> None:
+    def __init__(self, redis_pool: Any, *, job_repo: JobRepository | None = None) -> None:
         # redis_pool: arq.connections.ArqRedis — typed as Any to avoid hard
         # import at module level so tests without arq installed still work.
         self._redis = redis_pool
+        self._job_repo = job_repo
 
     async def enqueue(self, task_name: str, **kwargs: Any) -> str:
         arq_job = await self._redis.enqueue_job(task_name, **kwargs)
@@ -61,6 +63,13 @@ class JobQueue:
                 f"Failed to enqueue job '{task_name}' (possible deduplication clash)."
             )
         job_id: str = arq_job.job_id
+        if self._job_repo is not None:
+            job = Job(
+                id=job_id,
+                kind=task_name,
+                session_id=kwargs.get("session_id"),
+            )
+            await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
         return job_id
 
     async def get_status(self, job_id: str) -> Job:
@@ -74,6 +83,10 @@ class JobQueue:
         arq_status = await arq_job.status()
 
         if arq_status == ArqStatus.not_found:
+            if self._job_repo is not None:
+                stored = await self._job_repo.get_job(job_id)
+                if stored is not None:
+                    return stored
             raise NotFoundError(f"Job '{job_id}' not found.")
 
         now = datetime.now(timezone.utc)
@@ -122,7 +135,7 @@ class JobQueue:
                 status = JobStatus.SUCCEEDED
         # else: queued or deferred → QUEUED (already set)
 
-        return Job(
+        job = Job(
             id=job_id,
             kind=kind,
             status=status,
@@ -131,6 +144,9 @@ class JobQueue:
             created_at=created_at,
             updated_at=now,
         )
+        if self._job_repo is not None:
+            await self._job_repo.save_job(job)
+        return job
 
     async def get_dead_letter_entries(self) -> list[DeadLetterEntry]:
         raw_entries: list[bytes] = await self._redis.zrange("jobs_deadletter", 0, -1)
@@ -211,8 +227,10 @@ class FakeJobQueue:
         plans: dict[str, Any],
         project_plans: dict[str, list[str]],
         defects: dict[str, Any] | None = None,
+        job_repo: JobRepository | None = None,
     ) -> None:
         self._jobs: dict[str, Job] = {}
+        self._job_repo = job_repo
         self._ctx: dict[str, Any] = {
             "brain": brain,
             "blob_store": blob_store,
@@ -220,6 +238,7 @@ class FakeJobQueue:
             "plans": plans,
             "project_plans": project_plans,
             "defects": defects if defects is not None else {},
+            "job_repo": job_repo,
             "max_tries": 4,
         }
 
@@ -238,8 +257,10 @@ class FakeJobQueue:
             "delete_project_artefacts": delete_project_artefacts,
         }
 
-        job = Job(kind=task_name)
+        job = Job(kind=task_name, session_id=kwargs.get("session_id"))
         self._jobs[job.id] = job
+        if self._job_repo is not None:
+            await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
 
         fn = task_map.get(task_name)
         if fn is not None:
@@ -263,20 +284,32 @@ class FakeJobQueue:
         kwargs: dict[str, Any],
     ) -> None:
         job.start()
+        if self._job_repo is not None:
+            await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
         try:
             result = await fn(ctx, **kwargs)
             if isinstance(result, dict) and result.get("success") is False:
                 job.fail(str(result.get("error", "task returned failure")))
             else:
                 job.succeed(result if isinstance(result, dict) else {})
+            if self._job_repo is not None:
+                await self._job_repo.delete_checkpoint(job.id)
+                await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
         except Exception as exc:
             job.fail(str(exc))
+            if self._job_repo is not None:
+                await self._job_repo.delete_checkpoint(job.id)
+                await self._job_repo.save_job(job, project_id=kwargs.get("project_id"))
 
     async def get_status(self, job_id: str) -> Job:
         from ai_testplan_generator.api.errors import NotFoundError
 
         job = self._jobs.get(job_id)
         if job is None:
+            if self._job_repo is not None:
+                stored = await self._job_repo.get_job(job_id)
+                if stored is not None:
+                    return stored
             raise NotFoundError(f"Job '{job_id}' not found.")
         return job
 

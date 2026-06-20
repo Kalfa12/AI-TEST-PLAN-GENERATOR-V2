@@ -14,6 +14,7 @@ from ai_testplan_generator.api.errors import AuthError
 from ai_testplan_generator.api.jobs import Job
 from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.projects import ProjectRepository
+from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.events.broker import EventBroker
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
@@ -44,6 +45,10 @@ def get_event_broker(request: Request) -> EventBroker:
 
 def get_job_queue(request: Request) -> JobQueueProtocol:
     return cast(JobQueueProtocol, request.app.state.job_queue)
+
+
+def get_job_repo(request: Request) -> JobRepository:
+    return cast(JobRepository, request.app.state.job_repo)
 
 
 def get_jobs(request: Request) -> dict[str, Job]:

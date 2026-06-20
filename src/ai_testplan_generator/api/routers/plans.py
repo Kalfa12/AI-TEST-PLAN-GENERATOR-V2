@@ -21,6 +21,7 @@ from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_brain,
     get_current_user,
+    get_job_repo,
     get_job_queue,
     get_plans,
 )
@@ -37,6 +38,7 @@ from ai_testplan_generator.api.schemas.plans import (
     TestPlanSummary,
 )
 from ai_testplan_generator.jobs.queue import JobQueueProtocol
+from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
@@ -213,8 +215,17 @@ async def delete_plan(
 async def get_job_checkpoint(
     job_id: str,
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
+    job_repo: Annotated[JobRepository, Depends(get_job_repo)],
 ) -> CheckpointResponse:
     from ai_testplan_generator.api.errors import NotFoundError, ValidationError
+
+    stored = await job_repo.get_checkpoint(job_id)
+    if stored is not None:
+        return CheckpointResponse(
+            job_id=stored.job_id,
+            paused_at=stored.paused_at,
+            state=stored.state,
+        )
 
     job = await job_queue.get_status(job_id)
     paused_at = getattr(job, "paused_at", None)
@@ -243,6 +254,7 @@ async def resume_job(
     job_id: str,
     body: ResumeRequest,
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
+    job_repo: Annotated[JobRepository, Depends(get_job_repo)],
 ) -> Any:
     from ai_testplan_generator.api.errors import ValidationError
     from ai_testplan_generator.api.routers.events import JobStatusResponse
@@ -258,12 +270,22 @@ async def resume_job(
     if body.action == "reprompt" and not (body.feedback and body.feedback.strip()):
         raise ValidationError("Reprompt requires non-empty feedback text.")
 
+    checkpoint = await job_repo.get_checkpoint(job_id)
     job = await job_queue.get_status(job_id)
+    if checkpoint is None and getattr(job, "paused_at", None) is None:
+        raise ValidationError(
+            f"Job '{job_id}' is not currently paused at a checkpoint."
+        )
+
+    await job_repo.save_resume_directive(
+        job_id,
+        {"action": body.action, "feedback": body.feedback},
+    )
     ok = submit_directive(
         job,
         ResumeDirective(action=body.action, feedback=body.feedback),
     )
-    if not ok:
+    if not ok and checkpoint is None:
         raise ValidationError(
             f"Job '{job_id}' is not currently paused at a checkpoint."
         )

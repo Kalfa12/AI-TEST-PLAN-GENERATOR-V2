@@ -24,6 +24,7 @@ from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_current_user,
     get_event_broker,
+    get_job_repo,
     get_job_queue,
     get_jobs,
     get_plans,
@@ -33,6 +34,7 @@ from ai_testplan_generator.api.deps import (
     get_user_repo,
 )
 from ai_testplan_generator.config import Settings
+from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.events.broker import InMemoryEventBroker
@@ -74,6 +76,7 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
     _user_repo = await UserRepository.create(
         db_path=str(tmp_path / "app.db")
     )
+    job_repo = await JobRepository.create(db_path=str(tmp_path / "app.db"))
     event_broker = InMemoryEventBroker()
     jobs: dict = {}  # type: ignore[type-arg]
     plans: dict = {}  # type: ignore[type-arg]
@@ -86,6 +89,7 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
         event_broker=event_broker,
         plans=plans,
         project_plans=project_plans,
+        job_repo=job_repo,
     )
 
     # Stub admin user — bypasses all RBAC checks so existing tests pass.
@@ -107,6 +111,7 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
     app.dependency_overrides[get_user_repo] = lambda: _user_repo
     app.dependency_overrides[get_current_user] = lambda: stub_user
     app.dependency_overrides[get_event_broker] = lambda: event_broker
+    app.dependency_overrides[get_job_repo] = lambda: job_repo
     app.dependency_overrides[get_job_queue] = lambda: fake_job_queue
     app.dependency_overrides[get_jobs] = lambda: jobs
     app.dependency_overrides[get_plans] = lambda: plans
@@ -120,3 +125,4 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
 
     await project_repo.close()
     await _user_repo.close()
+    await job_repo.close()

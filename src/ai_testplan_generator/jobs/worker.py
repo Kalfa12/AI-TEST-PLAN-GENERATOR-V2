@@ -37,6 +37,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     from ai_testplan_generator.knowledge import GeneralKnowledgeBase
     from ai_testplan_generator.llm import get_gateway
     from ai_testplan_generator.domain.artifacts import ArtifactRepository
+    from ai_testplan_generator.domain.jobs import JobRepository
     from ai_testplan_generator.memory.backends import (
         build_episodic_store,
         build_graph_store,
@@ -51,6 +52,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     graph = build_graph_store(cfg)
     blob_store = build_blob_store(cfg)
     artifact_repo = await ArtifactRepository.create(db_path=cfg.app_db_path)
+    job_repo = await JobRepository.create(db_path=cfg.app_db_path)
 
     llm = get_gateway()
     memory = MemoryManager(
@@ -76,6 +78,7 @@ async def startup(ctx: dict[str, Any]) -> None:
     ctx["brain"] = brain
     ctx["blob_store"] = blob_store
     ctx["artifact_repo"] = artifact_repo
+    ctx["job_repo"] = job_repo
     ctx["event_broker"] = event_broker
     ctx["settings"] = cfg
     ctx["max_tries"] = WorkerSettings.max_tries
@@ -97,6 +100,10 @@ async def shutdown(ctx: dict[str, Any]) -> None:
             await graph.close()  # type: ignore[union-attr]
         if brain.memory.artifact_repo is not None:
             await brain.memory.artifact_repo.close()
+
+    job_repo = ctx.get("job_repo")
+    if job_repo is not None:
+        await job_repo.close()
 
     event_broker = ctx.get("event_broker")
     if event_broker is not None and hasattr(event_broker, "close"):

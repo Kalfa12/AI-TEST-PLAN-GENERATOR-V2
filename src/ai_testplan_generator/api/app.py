@@ -100,6 +100,10 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
 
         user_repo = await UserRepository.create(db_path=cfg.app_db_path)
 
+        from ai_testplan_generator.domain.jobs import JobRepository
+
+        job_repo = await JobRepository.create(db_path=cfg.app_db_path)
+
         # Event broker — InMemoryEventBroker or RedisPubSubBroker depending on settings (M18).
         from ai_testplan_generator.events.broker import build_event_broker
 
@@ -124,6 +128,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
                 plans=app.state.plans,
                 project_plans=app.state.project_plans,
                 defects=app.state.defects,
+                job_repo=job_repo,
             )
             _log.info("arq_pool_bypassed", reason="inmemory_semantic_backend")
         else:
@@ -136,7 +141,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
                 )
                 from ai_testplan_generator.jobs.queue import JobQueue
 
-                job_queue = JobQueue(redis_pool)
+                job_queue = JobQueue(redis_pool, job_repo=job_repo)
                 _log.info("arq_pool_connected", redis_url=cfg.redis_url)
             except Exception as arq_err:
                 _log.warning("arq_pool_unavailable", error=str(arq_err))
@@ -146,6 +151,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         app.state.blob_store = blob_store
         app.state.project_repo = project_repo
         app.state.user_repo = user_repo
+        app.state.job_repo = job_repo
         app.state.artifact_repo = artifact_repo
         app.state.event_broker = event_broker
         app.state.job_queue = job_queue  # None when Redis is unavailable
@@ -164,6 +170,7 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
             await graph.close()  # type: ignore[union-attr]
         await project_repo.close()
         await user_repo.close()
+        await job_repo.close()
         await artifact_repo.close()
         if redis_pool is not None:
             await redis_pool.aclose()
