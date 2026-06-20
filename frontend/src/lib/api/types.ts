@@ -150,6 +150,7 @@ export interface ChatReply {
   session_id: string;
   assistant_message: string;
   pending_action: string | null;
+  unsupported_action?: string | null;
 }
 
 export interface DeadLetterEntry {

@@ -1,8 +1,8 @@
 """Chat / copilot endpoints (M08).
 
-POST /chat                        send one turn → ChatReply
+POST /chat                        send one turn -> ChatReply
 GET  /chat/{session_id}/history   episodic history for a session
-POST /chat/{session_id}/confirm   confirm a pending mutation
+POST /chat/{session_id}/confirm   reject unsupported pending mutations
 WS   /chat/{session_id}/stream    WebSocket streaming tokens
 """
 
@@ -20,7 +20,7 @@ from ai_testplan_generator.api.deps import (
     get_current_user_ws,
     get_project_repo,
 )
-from ai_testplan_generator.api.errors import AuthError
+from ai_testplan_generator.api.errors import AuthError, UnsupportedFeatureError
 from ai_testplan_generator.api.schemas.chat import (
     ChatReply,
     ChatRequest,
@@ -79,6 +79,7 @@ async def chat(
         session_id=session.session_id,
         assistant_message=reply.assistant_message,
         pending_action=reply.pending_action,
+        unsupported_action=reply.unsupported_action,
     )
 
 
@@ -103,18 +104,13 @@ async def chat_history(
     summary="Confirm or discard a pending copilot action",
 )
 async def confirm_action(
-    session_id: str,
-    body: ConfirmRequest,
+    session_id: str,  # noqa: ARG001
+    body: ConfirmRequest,  # noqa: ARG001
     current_user: Annotated[User, Depends(get_current_user)],  # noqa: ARG001
-    brain: Annotated[Brain, Depends(get_brain)],
 ) -> ChatReply:
-    message = "Confirmed." if body.confirmed else "Discarded."
-    pipeline = _get_pipeline(brain)
-    reply = await pipeline.ask(message, session_id=session_id)
-    return ChatReply(
-        session_id=session_id,
-        assistant_message=reply.assistant_message,
-        pending_action=reply.pending_action,
+    raise UnsupportedFeatureError(
+        "Chat-confirmed plan mutations are outside the current product scope. "
+        "Use the interactive generation checkpoints to revise persisted plans."
     )
 
 

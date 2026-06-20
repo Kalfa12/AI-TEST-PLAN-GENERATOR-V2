@@ -8,10 +8,9 @@ a natural seam to later add a confirmation node for mutating actions.
 Topology:
     START -> copilot -> maybe_apply -> END
 
-`maybe_apply` inspects the copilot's `proposed_action`. If an action
-needs confirmation, it stays in a waiting state and surfaces the
-pending action to the caller; otherwise it applies non-mutating actions
-directly.
+`maybe_apply` is intentionally non-mutating for the current MVP scope. If
+the LLM proposes a mutation anyway, the graph turns it into an explicit
+unsupported action instead of surfacing a fake confirmation flow.
 """
 
 from __future__ import annotations
@@ -23,6 +22,8 @@ from langgraph.graph import END, StateGraph
 from ai_testplan_generator.agents import CopilotAgent, InteractiveState
 from ai_testplan_generator.agents.base import AgentContext
 
+SUPPORTED_MUTATING_ACTIONS: set[str] = set()
+
 
 def build_interactive_graph(ctx: AgentContext) -> Any:
     copilot = CopilotAgent(ctx)
@@ -32,19 +33,37 @@ def build_interactive_graph(ctx: AgentContext) -> Any:
         reply = await copilot.invoke(
             CopilotAgent.Input(user_message=state.user_message)
         )
+        proposed_action = (
+            reply.proposed_action
+            if reply.needs_confirmation and reply.proposed_action != "none"
+            else None
+        )
+        if proposed_action and proposed_action not in SUPPORTED_MUTATING_ACTIONS:
+            await ctx.memory.log_event(
+                ctx.session_id,
+                actor="copilot",
+                kind="unsupported_action",
+                content=proposed_action,
+            )
+            return {
+                "assistant_message": (
+                    f"{reply.message}\n\n"
+                    "This chat is currently read-only: it can explain, critique, "
+                    "and suggest edits, but confirmed plan mutations are not "
+                    "implemented in this product scope yet."
+                ),
+                "pending_action": None,
+                "unsupported_action": proposed_action,
+            }
         return {
             "assistant_message": reply.message,
-            "pending_action": (
-                reply.proposed_action
-                if reply.needs_confirmation and reply.proposed_action != "none"
-                else None
-            ),
+            "pending_action": proposed_action,
+            "unsupported_action": None,
         }
 
     async def _maybe_apply(state: InteractiveState) -> dict[str, Any]:
-        # Non-mutating by default. Concrete mutations (add_test_case etc.)
-        # are resolved in a later phase when the user confirms - at which
-        # point a caller will re-enter the graph with a flag to apply.
+        # Mutating chat tools are deliberately out of scope until they can
+        # write persisted plans and audit every change.
         return {}
 
     graph.add_node("copilot", _copilot)

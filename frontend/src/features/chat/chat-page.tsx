@@ -25,6 +25,7 @@ interface Message {
   text: string;
   citations?: Citation[];
   pendingAction?: string | null;
+  unsupportedAction?: string | null;
   streaming?: boolean;
 }
 
@@ -187,6 +188,7 @@ export function ChatPage() {
               role: "assistant",
               text: reply.assistant_message,
               pendingAction: reply.pending_action,
+              unsupportedAction: reply.unsupported_action,
             },
           ];
         });
@@ -226,6 +228,7 @@ export function ChatPage() {
           role: "assistant",
           text: reply.assistant_message,
           pendingAction: reply.pending_action,
+          unsupportedAction: reply.unsupported_action,
         },
       ]);
     } catch (e) {
@@ -339,6 +342,9 @@ function MessageBubble({
         {message.pendingAction && (
           <PendingActionBanner action={message.pendingAction} onConfirm={onConfirm} />
         )}
+        {message.unsupportedAction && (
+          <UnsupportedActionNotice action={message.unsupportedAction} />
+        )}
       </div>
     </div>
   );
@@ -353,6 +359,17 @@ function CitationChip({ citation }: { citation: Citation }) {
     <Badge tone="info" className="cursor-pointer" title={citation.excerpt ?? ""}>
       {label}
     </Badge>
+  );
+}
+
+function UnsupportedActionNotice({ action }: { action: string }) {
+  return (
+    <div className="mt-3 p-2 border border-border rounded-md bg-muted text-muted-foreground text-xs">
+      <div className="font-medium text-foreground">Action not available: {action}</div>
+      <div className="mt-1">
+        Chat can suggest changes, but persisted plan edits must go through the generation workflow.
+      </div>
+    </div>
   );
 }
 

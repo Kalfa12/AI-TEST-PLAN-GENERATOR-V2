@@ -19,6 +19,7 @@ class ChatReply(BaseModel):
     session_id: str
     assistant_message: str
     pending_action: str | None = None
+    unsupported_action: str | None = None
 
 
 class ConfirmRequest(BaseModel):

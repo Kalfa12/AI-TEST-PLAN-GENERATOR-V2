@@ -23,6 +23,7 @@ from ai_testplan_generator.pipelines.brain import Brain
 class ChatReply:
     assistant_message: str
     pending_action: str | None = None
+    unsupported_action: str | None = None
 
 
 class InteractiveSession:
@@ -44,6 +45,7 @@ class InteractiveSession:
         return ChatReply(
             assistant_message=out_state.assistant_message,
             pending_action=out_state.pending_action,
+            unsupported_action=out_state.unsupported_action,
         )
 
 

@@ -37,6 +37,18 @@ class PlannerAgent(BaseAgent[_PlanInput, TestSchedule]):
     Input = _PlanInput
 
     async def run(self, inp: _PlanInput) -> TestSchedule:
+        if not inp.resources:
+            await self.ctx.memory.log_event(
+                self.ctx.session_id,
+                actor=self.name,
+                kind="planning_skipped",
+                content=(
+                    "No planning resources were configured; returning an empty "
+                    "schedule instead of fabricating assignments."
+                ),
+            )
+            return TestSchedule(plan_id=inp.plan.id)
+
         start = inp.start_date or (date.today() + timedelta(days=7))
         tc_blob = [
             f"- [{tc.id}] {tc.title} "

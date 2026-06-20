@@ -44,3 +44,8 @@ class RateLimitError(AppError):
 class BackendUnavailable(AppError):
     status_code = 503
     error_code = "BACKEND_UNAVAILABLE"
+
+
+class UnsupportedFeatureError(AppError):
+    status_code = 501
+    error_code = "UNSUPPORTED_FEATURE"
