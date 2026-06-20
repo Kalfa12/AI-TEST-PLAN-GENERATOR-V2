@@ -25,6 +25,8 @@ interface Message {
   text: string;
   citations?: Citation[];
   pendingAction?: string | null;
+  pendingActionId?: string | null;
+  pendingActionPreview?: string | null;
   unsupportedAction?: string | null;
   streaming?: boolean;
 }
@@ -188,6 +190,8 @@ export function ChatPage() {
               role: "assistant",
               text: reply.assistant_message,
               pendingAction: reply.pending_action,
+              pendingActionId: reply.pending_action_id,
+              pendingActionPreview: reply.pending_action_preview,
               unsupportedAction: reply.unsupported_action,
             },
           ];
@@ -218,9 +222,9 @@ export function ChatPage() {
     }
   };
 
-  const onConfirm = async (confirmed: boolean) => {
+  const onConfirm = async (confirmed: boolean, actionId?: string | null) => {
     try {
-      const reply = await confirmAction(sessionId, confirmed);
+      const reply = await confirmAction(sessionId, confirmed, actionId);
       setMessages((m) => [
         ...m,
         {
@@ -312,7 +316,7 @@ function MessageBubble({
   onConfirm,
 }: {
   message: Message;
-  onConfirm: (confirmed: boolean) => void;
+  onConfirm: (confirmed: boolean, actionId?: string | null) => void;
 }) {
   const isUser = message.role === "user";
   return (
@@ -340,7 +344,12 @@ function MessageBubble({
           </div>
         )}
         {message.pendingAction && (
-          <PendingActionBanner action={message.pendingAction} onConfirm={onConfirm} />
+          <PendingActionBanner
+            action={message.pendingAction}
+            actionId={message.pendingActionId}
+            preview={message.pendingActionPreview}
+            onConfirm={onConfirm}
+          />
         )}
         {message.unsupportedAction && (
           <UnsupportedActionNotice action={message.unsupportedAction} />
@@ -375,19 +384,24 @@ function UnsupportedActionNotice({ action }: { action: string }) {
 
 function PendingActionBanner({
   action,
+  actionId,
+  preview,
   onConfirm,
 }: {
   action: string;
-  onConfirm: (confirmed: boolean) => void;
+  actionId?: string | null;
+  preview?: string | null;
+  onConfirm: (confirmed: boolean, actionId?: string | null) => void;
 }) {
   return (
     <div className="mt-3 p-2 border border-amber-300 rounded-md bg-amber-50 text-amber-900 text-xs">
       <div className="font-medium mb-2">Pending action: {action}</div>
+      {preview && <div className="mb-2">{preview}</div>}
       <div className="flex gap-2">
-        <Button size="sm" onClick={() => onConfirm(true)}>
+        <Button size="sm" onClick={() => onConfirm(true, actionId)}>
           Confirm
         </Button>
-        <Button size="sm" variant="outline" onClick={() => onConfirm(false)}>
+        <Button size="sm" variant="outline" onClick={() => onConfirm(false, actionId)}>
           Discard
         </Button>
       </div>

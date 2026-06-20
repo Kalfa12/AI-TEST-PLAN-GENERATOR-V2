@@ -73,4 +73,6 @@ class InteractiveState(BaseModel):
     assistant_message: str = ""
     plan: TestPlan | None = None
     pending_action: str | None = None  # e.g. "add_test_case", "revise_criterion"
+    pending_action_id: str | None = None
+    pending_action_preview: str | None = None
     unsupported_action: str | None = None

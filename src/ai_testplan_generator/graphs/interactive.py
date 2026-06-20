@@ -15,14 +15,23 @@ unsupported action instead of surfacing a fake confirmation flow.
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from pydantic import ValidationError as PydanticValidationError
 from langgraph.graph import END, StateGraph
 
 from ai_testplan_generator.agents import CopilotAgent, InteractiveState
 from ai_testplan_generator.agents.base import AgentContext
+from ai_testplan_generator.domain.chat_actions import (
+    ChatAction,
+    MUTATING_ACTIONS,
+    PendingChatAction,
+    action_preview,
+    validate_action_payload,
+)
 
-SUPPORTED_MUTATING_ACTIONS: set[str] = set()
+SUPPORTED_MUTATING_ACTIONS = {action.value for action in MUTATING_ACTIONS}
 
 
 def build_interactive_graph(ctx: AgentContext) -> Any:
@@ -55,9 +64,66 @@ def build_interactive_graph(ctx: AgentContext) -> Any:
                 "pending_action": None,
                 "unsupported_action": proposed_action,
             }
+        if proposed_action:
+            user_id = (ctx.config or {}).get("user_id")
+            if not user_id or not ctx.project_id or ctx.memory.artifact_repo is None:
+                return {
+                    "assistant_message": (
+                        f"{reply.message}\n\n"
+                        "I cannot create a pending plan mutation because this chat "
+                        "session is missing persisted project/user context."
+                    ),
+                    "pending_action": None,
+                    "unsupported_action": proposed_action,
+                }
+            try:
+                validate_action_payload(ChatAction(proposed_action), reply.action_payload)
+                preview = action_preview(ChatAction(proposed_action), reply.action_payload)
+            except (ValueError, PydanticValidationError) as exc:
+                await ctx.memory.log_event(
+                    ctx.session_id,
+                    actor="copilot",
+                    kind="invalid_action_payload",
+                    content=str(exc),
+                )
+                return {
+                    "assistant_message": (
+                        f"{reply.message}\n\n"
+                        "I could not prepare a safe pending mutation because the "
+                        "action payload was incomplete or invalid."
+                    ),
+                    "pending_action": None,
+                    "unsupported_action": proposed_action,
+                }
+            pending = PendingChatAction(
+                session_id=ctx.session_id,
+                user_id=str(user_id),
+                project_id=ctx.project_id,
+                action=ChatAction(proposed_action),
+                payload=reply.action_payload,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=30),
+            )
+            await ctx.memory.artifact_repo.save_pending_chat_action(pending)
+            await ctx.memory.log_event(
+                ctx.session_id,
+                actor="copilot",
+                kind="pending_action",
+                content=preview,
+                action_id=pending.id,
+                action=proposed_action,
+            )
+            return {
+                "assistant_message": reply.message,
+                "pending_action": proposed_action,
+                "pending_action_id": pending.id,
+                "pending_action_preview": preview,
+                "unsupported_action": None,
+            }
         return {
             "assistant_message": reply.message,
             "pending_action": proposed_action,
+            "pending_action_id": None,
+            "pending_action_preview": None,
             "unsupported_action": None,
         }
 

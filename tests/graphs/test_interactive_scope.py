@@ -52,5 +52,4 @@ async def test_interactive_graph_does_not_surface_fake_chat_mutations() -> None:
 
     assert out["pending_action"] is None
     assert out["unsupported_action"] == "add_test_case"
-    assert "read-only" in out["assistant_message"]
-    assert "not implemented" in out["assistant_message"]
+    assert "missing persisted project/user context" in out["assistant_message"]

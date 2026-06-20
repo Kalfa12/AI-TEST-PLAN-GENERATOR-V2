@@ -25,9 +25,9 @@ class TestChatEndpoint:
         assert body["session_id"] == "nonexistent-session"
         assert body["events"] == []
 
-    async def test_chat_confirm_returns_unsupported_feature(self, client: AsyncClient) -> None:
+    async def test_chat_confirm_without_pending_action_returns_validation(self, client: AsyncClient) -> None:
         resp = await client.post("/chat/session-a/confirm", json={"confirmed": True})
-        assert resp.status_code == 501
+        assert resp.status_code == 422
         body = resp.json()
-        assert body["error_code"] == "UNSUPPORTED_FEATURE"
-        assert "outside the current product scope" in body["detail"]
+        assert body["error_code"] == "VALIDATION_ERROR"
+        assert "No active pending action" in body["detail"]

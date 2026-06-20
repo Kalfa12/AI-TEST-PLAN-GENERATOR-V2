@@ -8,7 +8,7 @@ to be driven one turn at a time from the interactive graph.
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -23,10 +23,11 @@ from ai_testplan_generator.prompts.library import COPILOT_SYSTEM
 
 CopilotAction = Literal[
     "none",
+    "summarise_plan",
+    "check_coverage",
     "add_test_case",
     "revise_test_case",
     "remove_test_case",
-    "change_detail_level",
 ]
 
 
@@ -34,7 +35,7 @@ class CopilotReply(BaseModel):
     message: str
     citations: list[str] = Field(default_factory=list)  # "spec_v3.pdf p.41"
     proposed_action: CopilotAction = "none"
-    action_payload: dict[str, str] = Field(default_factory=dict)
+    action_payload: dict[str, Any] = Field(default_factory=dict)
     needs_confirmation: bool = False
 
 

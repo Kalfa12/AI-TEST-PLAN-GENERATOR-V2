@@ -7,6 +7,7 @@ reload, and export after a process restart.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,7 @@ from typing import Any
 import aiosqlite
 import structlog
 
+from ai_testplan_generator.domain.chat_actions import ChatAction, PendingChatAction
 from ai_testplan_generator.models import (
     Chunk,
     Document,
@@ -112,6 +114,36 @@ CREATE TABLE IF NOT EXISTS resources (
     json             TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_resources_project ON resources(project_id);
+
+CREATE TABLE IF NOT EXISTS pending_chat_actions (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL,
+    user_id     TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    action      TEXT NOT NULL,
+    payload     TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    expires_at  TEXT NOT NULL,
+    consumed_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pending_chat_session
+    ON pending_chat_actions(session_id, user_id, consumed_at, expires_at);
+
+CREATE TABLE IF NOT EXISTS audit_events (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts           TEXT NOT NULL,
+    user_id      TEXT,
+    project_id   TEXT,
+    action       TEXT NOT NULL,
+    target_type  TEXT,
+    target_id    TEXT,
+    status       INTEGER NOT NULL,
+    ip           TEXT,
+    user_agent   TEXT,
+    metadata     TEXT DEFAULT '{}'
+);
+CREATE INDEX IF NOT EXISTS idx_audit_user_ts ON audit_events(user_id, ts);
+CREATE INDEX IF NOT EXISTS idx_audit_action_ts ON audit_events(action, ts);
 """
 
 
@@ -301,6 +333,101 @@ class ArtifactRepository:
         await self._db().commit()
         return changed > 0
 
+    async def save_pending_chat_action(self, action: PendingChatAction) -> None:
+        await self._db().execute(
+            """
+            INSERT OR REPLACE INTO pending_chat_actions
+                (id, session_id, user_id, project_id, action, payload,
+                 created_at, expires_at, consumed_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                action.id,
+                action.session_id,
+                action.user_id,
+                action.project_id,
+                action.action.value,
+                json.dumps(action.payload),
+                action.created_at.isoformat(),
+                action.expires_at.isoformat(),
+                action.consumed_at.isoformat() if action.consumed_at else None,
+            ),
+        )
+        await self._db().commit()
+
+    async def get_pending_chat_action(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        action_id: str | None = None,
+    ) -> PendingChatAction | None:
+        now = datetime.now(timezone.utc).isoformat()
+        if action_id is None:
+            rows = await self._fetch_all(
+                """
+                SELECT id, session_id, user_id, project_id, action, payload,
+                       created_at, expires_at, consumed_at
+                FROM pending_chat_actions
+                WHERE session_id=? AND user_id=? AND consumed_at IS NULL AND expires_at > ?
+                ORDER BY created_at DESC
+                LIMIT 1
+                """,
+                (session_id, user_id, now),
+            )
+        else:
+            rows = await self._fetch_all(
+                """
+                SELECT id, session_id, user_id, project_id, action, payload,
+                       created_at, expires_at, consumed_at
+                FROM pending_chat_actions
+                WHERE id=? AND session_id=? AND user_id=?
+                      AND consumed_at IS NULL AND expires_at > ?
+                LIMIT 1
+                """,
+                (action_id, session_id, user_id, now),
+            )
+        if not rows:
+            return None
+        return _row_to_pending_chat_action(rows[0])
+
+    async def consume_pending_chat_action(self, action_id: str) -> None:
+        await self._db().execute(
+            "UPDATE pending_chat_actions SET consumed_at=? WHERE id=?",
+            (datetime.now(timezone.utc).isoformat(), action_id),
+        )
+        await self._db().commit()
+
+    async def record_audit_event(
+        self,
+        *,
+        user_id: str | None,
+        project_id: str | None,
+        action: str,
+        target_type: str | None,
+        target_id: str | None,
+        status: int = 200,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        await self._db().execute(
+            """
+            INSERT INTO audit_events
+                (ts, user_id, project_id, action, target_type, target_id, status, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                datetime.now(timezone.utc).isoformat(),
+                user_id,
+                project_id,
+                action,
+                target_type,
+                target_id,
+                status,
+                json.dumps(metadata or {}),
+            ),
+        )
+        await self._db().commit()
+
     async def save_test_cases(
         self, test_cases: list[TestCase], *, plan_id: str | None = None
     ) -> None:
@@ -473,3 +600,28 @@ class ArtifactRepository:
         if self._conn is not None:
             await self._conn.close()
             self._conn = None
+
+
+def _row_to_pending_chat_action(row: tuple[Any, ...]) -> PendingChatAction:
+    (
+        action_id,
+        session_id,
+        user_id,
+        project_id,
+        action,
+        payload,
+        created_at,
+        expires_at,
+        consumed_at,
+    ) = row
+    return PendingChatAction(
+        id=action_id,
+        session_id=session_id,
+        user_id=user_id,
+        project_id=project_id,
+        action=ChatAction(action),
+        payload=json.loads(payload),
+        created_at=datetime.fromisoformat(created_at),
+        expires_at=datetime.fromisoformat(expires_at),
+        consumed_at=datetime.fromisoformat(consumed_at) if consumed_at else None,
+    )

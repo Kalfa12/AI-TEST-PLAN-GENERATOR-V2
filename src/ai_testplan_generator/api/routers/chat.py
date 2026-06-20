@@ -21,12 +21,14 @@ from ai_testplan_generator.api.deps import (
     get_project_repo,
 )
 from ai_testplan_generator.api.errors import AuthError, UnsupportedFeatureError
+from ai_testplan_generator.api.errors import ValidationError as ApiValidationError
 from ai_testplan_generator.api.schemas.chat import (
     ChatReply,
     ChatRequest,
     ConfirmRequest,
     HistoryResponse,
 )
+from ai_testplan_generator.domain.chat_actions import apply_pending_chat_action
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.llm.base import ChatMessage
@@ -74,12 +76,18 @@ async def chat(
 ) -> ChatReply:
     await _ensure_project_chat_access(body.project_id, current_user, project_repo)
     pipeline = _get_pipeline(brain)
-    session = pipeline.session(project_id=body.project_id, session_id=body.session_id)
+    session = pipeline.session(
+        project_id=body.project_id,
+        session_id=body.session_id,
+        user_id=current_user.id,
+    )
     reply = await session.ask(body.message)
     return ChatReply(
         session_id=session.session_id,
         assistant_message=reply.assistant_message,
         pending_action=reply.pending_action,
+        pending_action_id=reply.pending_action_id,
+        pending_action_preview=reply.pending_action_preview,
         unsupported_action=reply.unsupported_action,
     )
 
@@ -105,13 +113,74 @@ async def chat_history(
     summary="Confirm or discard a pending copilot action",
 )
 async def confirm_action(
-    session_id: str,  # noqa: ARG001
-    body: ConfirmRequest,  # noqa: ARG001
-    current_user: Annotated[User, Depends(get_current_user)],  # noqa: ARG001
+    session_id: str,
+    body: ConfirmRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
 ) -> ChatReply:
-    raise UnsupportedFeatureError(
-        "Chat-confirmed plan mutations are outside the current product scope. "
-        "Use the interactive generation checkpoints to revise persisted plans."
+    repo = brain.memory.artifact_repo
+    if repo is None:
+        raise UnsupportedFeatureError("Chat mutations require durable artifact storage.")
+    pending = await repo.get_pending_chat_action(
+        session_id=session_id,
+        user_id=current_user.id,
+        action_id=body.action_id,
+    )
+    if pending is None:
+        raise ApiValidationError("No active pending action for this chat session.")
+
+    await _ensure_project_chat_access(pending.project_id, current_user, project_repo)
+
+    if not body.confirmed:
+        await repo.consume_pending_chat_action(pending.id)
+        await repo.record_audit_event(
+            user_id=current_user.id,
+            project_id=pending.project_id,
+            action=f"CHAT_DISCARD:{pending.action.value}",
+            target_type="PendingChatAction",
+            target_id=pending.id,
+            metadata={"session_id": session_id},
+        )
+        return ChatReply(
+            session_id=session_id,
+            assistant_message=f"Discarded pending action {pending.action.value}.",
+            pending_action=None,
+        )
+
+    try:
+        result = await apply_pending_chat_action(repo, pending)
+    except ValueError as exc:
+        raise ApiValidationError(str(exc)) from exc
+
+    await repo.consume_pending_chat_action(pending.id)
+    await brain.memory.hydrate()
+    await repo.record_audit_event(
+        user_id=current_user.id,
+        project_id=pending.project_id,
+        action=f"CHAT_CONFIRM:{pending.action.value}",
+        target_type="TestPlan",
+        target_id=result.plan_id,
+        metadata={
+            "session_id": session_id,
+            "action_id": pending.id,
+            "before_test_case_ids": result.before_test_case_ids,
+            "after_test_case_ids": result.after_test_case_ids,
+            "affected_test_case_ids": result.affected_test_case_ids,
+        },
+    )
+    await brain.memory.log_event(
+        session_id,
+        actor="copilot",
+        kind="mutation_applied",
+        content=result.message,
+        action_id=pending.id,
+        plan_id=result.plan_id,
+    )
+    return ChatReply(
+        session_id=session_id,
+        assistant_message=result.message,
+        pending_action=None,
     )
 
 

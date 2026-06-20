@@ -200,6 +200,8 @@ export interface ChatReply {
   session_id: string;
   assistant_message: string;
   pending_action: string | null;
+  pending_action_id?: string | null;
+  pending_action_preview?: string | null;
   unsupported_action?: string | null;
 }
 

@@ -19,11 +19,14 @@ class ChatReply(BaseModel):
     session_id: str
     assistant_message: str
     pending_action: str | None = None
+    pending_action_id: str | None = None
+    pending_action_preview: str | None = None
     unsupported_action: str | None = None
 
 
 class ConfirmRequest(BaseModel):
     confirmed: bool = True
+    action_id: str | None = None
 
 
 class HistoryResponse(BaseModel):

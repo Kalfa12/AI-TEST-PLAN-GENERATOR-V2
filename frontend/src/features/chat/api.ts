@@ -38,9 +38,11 @@ export async function getChatHistory(
 export async function confirmAction(
   sessionId: string,
   confirmed: boolean,
+  actionId?: string | null,
 ): Promise<ChatReply> {
   const res = await http.post<ChatReply>(`/chat/${sessionId}/confirm`, {
     confirmed,
+    action_id: actionId,
   });
   return res.data;
 }
