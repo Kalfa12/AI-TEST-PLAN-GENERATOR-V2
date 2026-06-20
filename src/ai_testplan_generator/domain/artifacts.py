@@ -15,7 +15,16 @@ from typing import Any
 import aiosqlite
 import structlog
 
-from ai_testplan_generator.models import Chunk, Document, Requirement, Section, TestCase, TestPlan
+from ai_testplan_generator.models import (
+    Chunk,
+    Document,
+    Requirement,
+    Resource,
+    Section,
+    TestCase,
+    TestCaseStatus,
+    TestPlan,
+)
 
 _log = structlog.get_logger(__name__)
 
@@ -92,6 +101,17 @@ CREATE TABLE IF NOT EXISTS test_cases (
     json    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_test_cases_plan ON test_cases(plan_id);
+
+CREATE TABLE IF NOT EXISTS resources (
+    id               TEXT PRIMARY KEY,
+    project_id       TEXT NOT NULL,
+    name             TEXT NOT NULL,
+    service          TEXT NOT NULL,
+    role             TEXT,
+    availability_pct INTEGER NOT NULL,
+    json             TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_resources_project ON resources(project_id);
 """
 
 
@@ -101,6 +121,7 @@ class ArtifactSnapshot:
     sections: list[Section] = field(default_factory=list)
     chunks: list[Chunk] = field(default_factory=list)
     requirements: list[Requirement] = field(default_factory=list)
+    resources: list[Resource] = field(default_factory=list)
     test_plans: list[TestPlan] = field(default_factory=list)
     test_cases: list[tuple[TestCase, str | None]] = field(default_factory=list)
 
@@ -234,6 +255,52 @@ class ArtifactRepository:
         )
         await self._db().commit()
 
+    async def save_resource(self, resource: Resource) -> None:
+        if resource.project_id is None:
+            raise ValueError("Resource must have a project_id.")
+        await self._db().execute(
+            """
+            INSERT OR REPLACE INTO resources
+                (id, project_id, name, service, role, availability_pct, json)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                resource.id,
+                resource.project_id,
+                resource.name,
+                resource.service,
+                resource.role,
+                resource.availability_pct,
+                resource.model_dump_json(),
+            ),
+        )
+        await self._db().commit()
+
+    async def list_resources(self, project_id: str) -> list[Resource]:
+        rows = await self._fetch_all(
+            "SELECT json FROM resources WHERE project_id=? ORDER BY name COLLATE NOCASE",
+            (project_id,),
+        )
+        return [Resource.model_validate_json(row[0]) for row in rows]
+
+    async def get_resource(self, project_id: str, resource_id: str) -> Resource | None:
+        rows = await self._fetch_all(
+            "SELECT json FROM resources WHERE project_id=? AND id=?",
+            (project_id, resource_id),
+        )
+        if not rows:
+            return None
+        return Resource.model_validate_json(rows[0][0])
+
+    async def delete_resource(self, project_id: str, resource_id: str) -> bool:
+        async with self._db().execute(
+            "DELETE FROM resources WHERE project_id=? AND id=?",
+            (project_id, resource_id),
+        ) as cur:
+            changed = cur.rowcount
+        await self._db().commit()
+        return changed > 0
+
     async def save_test_cases(
         self, test_cases: list[TestCase], *, plan_id: str | None = None
     ) -> None:
@@ -279,6 +346,10 @@ class ArtifactRepository:
             requirements=[
                 Requirement.model_validate_json(row[0])
                 for row in await self._fetch_all("SELECT json FROM requirements")
+            ],
+            resources=[
+                Resource.model_validate_json(row[0])
+                for row in await self._fetch_all("SELECT json FROM resources")
             ],
             test_plans=[
                 TestPlan.model_validate_json(row[0])
@@ -348,6 +419,26 @@ class ArtifactRepository:
             return None
         return TestPlan.model_validate_json(rows[0][0])
 
+    async def update_test_case_status(
+        self,
+        *,
+        project_id: str,
+        plan_id: str,
+        test_case_id: str,
+        status: TestCaseStatus,
+        status_note: str | None = None,
+    ) -> TestPlan | None:
+        plan = await self.get_test_plan(plan_id)
+        if plan is None or plan.project_id != project_id:
+            return None
+        target = next((tc for tc in plan.test_cases if tc.id == test_case_id), None)
+        if target is None:
+            return None
+        target.status = status
+        target.status_note = status_note
+        await self.save_test_plan(plan)
+        return plan
+
     async def delete_document(self, doc_id: str) -> None:
         await self._db().execute(
             "DELETE FROM requirements WHERE source_document_id=?",
@@ -367,6 +458,8 @@ class ArtifactRepository:
         docs = await self.list_documents(project_id)
         for doc in docs:
             await self.delete_document(doc.id)
+        await self._db().execute("DELETE FROM resources WHERE project_id=?", (project_id,))
+        await self._db().commit()
         plans = await self.list_test_plans(project_id)
         for plan in plans:
             await self.delete_test_plan(plan.id)

@@ -34,6 +34,7 @@ from ai_testplan_generator.api.deps import (
     get_user_repo,
 )
 from ai_testplan_generator.config import Settings
+from ai_testplan_generator.domain.artifacts import ArtifactRepository
 from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User, UserRepository
@@ -68,7 +69,12 @@ async def user_repo(tmp_path):  # type: ignore[no-untyped-def]
 @pytest_asyncio.fixture
 async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-def]
     """AsyncClient with mock Brain and all app.state values pre-populated."""
-    test_brain = Brain.build(llm=mock_llm, settings=api_settings)  # type: ignore[arg-type]
+    artifact_repo = await ArtifactRepository.create(db_path=str(tmp_path / "app.db"))
+    test_brain = Brain.build(
+        llm=mock_llm,
+        settings=api_settings,
+        artifact_repo=artifact_repo,
+    )  # type: ignore[arg-type]
     blob_store = LocalFilesystemBlobStore(root=str(tmp_path / "blobs"))
     project_repo = await ProjectRepository.create(
         db_path=str(tmp_path / "app.db")
@@ -127,3 +133,4 @@ async def client(mock_llm, api_settings, tmp_path):  # type: ignore[no-untyped-d
     await project_repo.close()
     await _user_repo.close()
     await job_repo.close()
+    await artifact_repo.close()

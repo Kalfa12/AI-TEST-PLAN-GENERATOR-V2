@@ -194,7 +194,8 @@ async def run_interactive(
     )
 
     planner = PlannerAgent(ctx)
-    schedule = await planner.invoke(PlannerAgent.Input(plan=plan, resources=[]))
+    resources = await brain.memory.list_resources_for_project(project_id)
+    schedule = await planner.invoke(PlannerAgent.Input(plan=plan, resources=resources))
     state.schedule = schedule
 
     return {

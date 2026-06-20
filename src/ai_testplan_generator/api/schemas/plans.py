@@ -6,7 +6,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.models import DetailLevel, TestPlan
+from ai_testplan_generator.models import DetailLevel, TestCaseStatus, TestPlan
 
 
 class CreatePlanRequest(BaseModel):
@@ -73,6 +73,9 @@ class TestCaseSummary(BaseModel):
     requirement_ids: list[str] = Field(default_factory=list)
     risk_level: int
     estimated_duration_minutes: int | None = None
+    assignee: str | None = None
+    status: TestCaseStatus = TestCaseStatus.NOT_STARTED
+    status_note: str | None = None
     tags: list[str] = Field(default_factory=list)
     source_evidence: list[dict[str, object]] = Field(default_factory=list)
 
@@ -105,6 +108,9 @@ class TestPlanSummary(BaseModel):
                     requirement_ids=tc.requirement_ids,
                     risk_level=tc.risk_level,
                     estimated_duration_minutes=tc.estimated_duration_minutes,
+                    assignee=tc.assignee,
+                    status=tc.status,
+                    status_note=tc.status_note,
                     tags=tc.tags,
                     source_evidence=[
                         ev.model_dump(mode="json") for ev in tc.source_evidence

@@ -2,11 +2,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   addMember,
   archiveProject,
+  createResource,
   createProject,
+  deleteResource,
   getProject,
+  listResources,
   listMembers,
   listProjects,
   removeMember,
+  updateResource,
   updateProject,
   updateProjectBudget,
   type ProjectRole,
@@ -91,5 +95,54 @@ export function useRemoveMember(projectId: string) {
     mutationFn: (userId: string) => removeMember(projectId, userId),
     onSuccess: () =>
       qc.invalidateQueries({ queryKey: ["project-members", projectId] }),
+  });
+}
+
+export function useResources(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ["project-resources", projectId],
+    queryFn: () => listResources(projectId!),
+    enabled: !!projectId,
+  });
+}
+
+export function useCreateResource(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      name: string;
+      service: string;
+      role?: string | null;
+      availability_pct: number;
+    }) => createResource(projectId, body),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["project-resources", projectId] }),
+  });
+}
+
+export function useUpdateResource(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      id: string;
+      name?: string;
+      service?: string;
+      role?: string | null;
+      availability_pct?: number;
+    }) => {
+      const { id, ...payload } = body;
+      return updateResource(projectId, id, payload);
+    },
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["project-resources", projectId] }),
+  });
+}
+
+export function useDeleteResource(projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (resourceId: string) => deleteResource(projectId, resourceId),
+    onSuccess: () =>
+      qc.invalidateQueries({ queryKey: ["project-resources", projectId] }),
   });
 }

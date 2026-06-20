@@ -43,6 +43,7 @@ from ai_testplan_generator.models import (
     Chunk,
     Document,
     Requirement,
+    Resource,
     Section,
     TestCase,
     TestPlan,
@@ -69,6 +70,7 @@ class _Artefacts:
     sections: dict[str, Section] = field(default_factory=dict)
     chunks: dict[str, Chunk] = field(default_factory=dict)
     requirements: dict[str, Requirement] = field(default_factory=dict)
+    resources: dict[str, Resource] = field(default_factory=dict)
     test_cases: dict[str, TestCase] = field(default_factory=dict)
     test_plans: dict[str, TestPlan] = field(default_factory=dict)
     test_case_plan_links: set[tuple[str, str]] = field(default_factory=set)
@@ -154,6 +156,8 @@ class MemoryManager:
             self._remember_chunk(ch)
         for req in snapshot.requirements:
             self._remember_requirement(req)
+        for resource in snapshot.resources:
+            self._remember_resource(resource)
         for plan in snapshot.test_plans:
             self._remember_test_plan(plan)
             for tc in plan.test_cases:
@@ -249,6 +253,43 @@ class MemoryManager:
             payloads=payloads,
             namespace=namespace,
         )
+
+    async def register_resource(self, resource: Resource) -> None:
+        self._remember_resource(resource)
+        if self.artifact_repo is not None:
+            await self.artifact_repo.save_resource(resource)
+
+    async def list_resources_for_project(self, project_id: str) -> list[Resource]:
+        if self.artifact_repo is not None:
+            resources = await self.artifact_repo.list_resources(project_id)
+            for resource in resources:
+                self._remember_resource(resource)
+            return resources
+        return [
+            resource
+            for resource in self._store.resources.values()
+            if resource.project_id == project_id
+        ]
+
+    async def get_resource(self, project_id: str, resource_id: str) -> Resource | None:
+        if self.artifact_repo is not None:
+            resource = await self.artifact_repo.get_resource(project_id, resource_id)
+            if resource is not None:
+                self._remember_resource(resource)
+            return resource
+        resource = self._store.resources.get(resource_id)
+        if resource is None or resource.project_id != project_id:
+            return None
+        return resource
+
+    async def delete_resource(self, project_id: str, resource_id: str) -> bool:
+        ok = True
+        if self.artifact_repo is not None:
+            ok = await self.artifact_repo.delete_resource(project_id, resource_id)
+        elif resource_id not in self._store.resources:
+            ok = False
+        self._store.resources.pop(resource_id, None)
+        return ok
 
     async def register_test_cases(
         self, test_cases: Sequence[TestCase], *, plan_id: str | None = None
@@ -490,6 +531,9 @@ class MemoryManager:
                     confidence=1.0,
                 )
             )
+
+    def _remember_resource(self, resource: Resource) -> None:
+        self._store.resources[resource.id] = resource
 
     def _remember_test_case(self, tc: TestCase, *, plan_id: str | None = None) -> None:
         is_new = tc.id not in self._store.test_cases

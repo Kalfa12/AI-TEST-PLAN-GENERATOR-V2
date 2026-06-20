@@ -4,7 +4,14 @@ from __future__ import annotations
 
 from ai_testplan_generator.domain.artifacts import ArtifactRepository
 from ai_testplan_generator.memory.manager import MemoryManager
-from ai_testplan_generator.models import DetailLevel, TestPlan as PlanModel
+from ai_testplan_generator.models import (
+    DetailLevel,
+    Resource,
+    TestCaseStatus as CaseStatus,
+    TestPlan as PlanModel,
+    TestSchedule as Schedule,
+)
+from ai_testplan_generator.models.planning import ScheduledAssignment
 from conftest import (
     MockLLMGateway,
     make_chunk,
@@ -100,5 +107,92 @@ async def test_memory_manager_hydrates_graph_from_durable_store(tmp_path) -> Non
     req_ancestors = hydrated.graph.ancestors(req.id, depth=3)
     assert chunk.id in req_ancestors
     assert doc.id in req_ancestors
+
+    await reopened.close()
+
+
+async def test_resources_and_schedule_survive_repository_restart(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    db_path = str(tmp_path / "planning.db")
+    repo = await ArtifactRepository.create(db_path=db_path)
+
+    resource = Resource(
+        id="res_bench",
+        project_id="proj-planning",
+        name="Validation bench",
+        service="System test lab",
+        role="Technician",
+    )
+    tc = make_test_case()
+    tc.id = "tc_sched"
+    tc.status = CaseStatus.PLANNED
+    tc.assignee = resource.name
+    plan = PlanModel(
+        id="plan_sched",
+        project_id="proj-planning",
+        title="Scheduled Plan",
+        detail_level=DetailLevel.DETAILED,
+        scope="Qualification",
+        strategy="Resource-backed execution.",
+        test_cases=[tc],
+        schedule=Schedule(
+            plan_id="plan_sched",
+            assignments={
+                tc.id: ScheduledAssignment(
+                    start="2099-01-02",
+                    end="2099-01-03",
+                    resource_ids=[resource.id],
+                    service=resource.service,
+                )
+            },
+        ),
+    )
+
+    await repo.save_resource(resource)
+    await repo.save_test_plan(plan)
+    await repo.close()
+
+    reopened = await ArtifactRepository.create(db_path=db_path)
+    resources = await reopened.list_resources("proj-planning")
+    reloaded_plan = await reopened.get_test_plan("plan_sched")
+
+    assert [r.id for r in resources] == [resource.id]
+    assert reloaded_plan is not None
+    assert reloaded_plan.schedule is not None
+    assert reloaded_plan.schedule.assignments[tc.id].resource_ids == [resource.id]
+    assert reloaded_plan.test_cases[0].status == CaseStatus.PLANNED
+    assert reloaded_plan.test_cases[0].assignee == resource.name
+
+    await reopened.close()
+
+
+async def test_test_case_status_update_is_persisted(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    db_path = str(tmp_path / "status.db")
+    repo = await ArtifactRepository.create(db_path=db_path)
+    tc = make_test_case()
+    plan = PlanModel(
+        project_id="proj-status",
+        title="Status Plan",
+        detail_level=DetailLevel.DETAILED,
+        scope="Qualification",
+        strategy="Track execution.",
+        test_cases=[tc],
+    )
+    await repo.save_test_plan(plan)
+
+    updated = await repo.update_test_case_status(
+        project_id="proj-status",
+        plan_id=plan.id,
+        test_case_id=tc.id,
+        status=CaseStatus.BLOCKED,
+        status_note="Waiting for bench availability.",
+    )
+    assert updated is not None
+    await repo.close()
+
+    reopened = await ArtifactRepository.create(db_path=db_path)
+    reloaded = await reopened.get_test_plan(plan.id)
+    assert reloaded is not None
+    assert reloaded.test_cases[0].status == CaseStatus.BLOCKED
+    assert reloaded.test_cases[0].status_note == "Waiting for bench availability."
 
     await reopened.close()

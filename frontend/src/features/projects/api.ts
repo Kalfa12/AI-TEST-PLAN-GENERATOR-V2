@@ -1,5 +1,10 @@
 import { http } from "@/lib/api/http";
-import type { Project, ProjectListResponse } from "@/lib/api/types";
+import type {
+  Project,
+  ProjectListResponse,
+  Resource,
+  ResourceListResponse,
+} from "@/lib/api/types";
 
 export async function listProjects(): Promise<Project[]> {
   const res = await http.get<ProjectListResponse>("/projects");
@@ -71,4 +76,46 @@ export async function removeMember(
   userId: string,
 ): Promise<void> {
   await http.delete(`/projects/${projectId}/members/${userId}`);
+}
+
+export async function listResources(projectId: string): Promise<Resource[]> {
+  const res = await http.get<ResourceListResponse>(`/projects/${projectId}/resources`);
+  return res.data.items;
+}
+
+export async function createResource(
+  projectId: string,
+  body: {
+    name: string;
+    service: string;
+    role?: string | null;
+    availability_pct: number;
+  },
+): Promise<Resource> {
+  const res = await http.post<Resource>(`/projects/${projectId}/resources`, body);
+  return res.data;
+}
+
+export async function updateResource(
+  projectId: string,
+  resourceId: string,
+  body: {
+    name?: string;
+    service?: string;
+    role?: string | null;
+    availability_pct?: number;
+  },
+): Promise<Resource> {
+  const res = await http.patch<Resource>(
+    `/projects/${projectId}/resources/${resourceId}`,
+    body,
+  );
+  return res.data;
+}
+
+export async function deleteResource(
+  projectId: string,
+  resourceId: string,
+): Promise<void> {
+  await http.delete(`/projects/${projectId}/resources/${resourceId}`);
 }

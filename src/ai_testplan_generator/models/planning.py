@@ -12,6 +12,7 @@ class Resource(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     id: str = Field(default_factory=lambda: f"res_{uuid4().hex[:8]}")
+    project_id: str | None = None
     name: str
     service: str  # e.g. "Mechanical test lab"
     role: str | None = None  # "Technician", "Test Engineer", ...

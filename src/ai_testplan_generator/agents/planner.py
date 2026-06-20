@@ -8,7 +8,13 @@ from pydantic import BaseModel, Field
 
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
-from ai_testplan_generator.models import Milestone, Resource, TestPlan, TestSchedule
+from ai_testplan_generator.models import (
+    Milestone,
+    Resource,
+    TestCaseStatus,
+    TestPlan,
+    TestSchedule,
+)
 from ai_testplan_generator.models.planning import ScheduledAssignment
 from ai_testplan_generator.prompts.library import PLANNER_SYSTEM
 
@@ -38,6 +44,8 @@ class PlannerAgent(BaseAgent[_PlanInput, TestSchedule]):
 
     async def run(self, inp: _PlanInput) -> TestSchedule:
         if not inp.resources:
+            schedule = TestSchedule(plan_id=inp.plan.id)
+            inp.plan.schedule = schedule
             await self.ctx.memory.log_event(
                 self.ctx.session_id,
                 actor=self.name,
@@ -47,7 +55,7 @@ class PlannerAgent(BaseAgent[_PlanInput, TestSchedule]):
                     "schedule instead of fabricating assignments."
                 ),
             )
-            return TestSchedule(plan_id=inp.plan.id)
+            return schedule
 
         start = inp.start_date or (date.today() + timedelta(days=7))
         tc_blob = [
@@ -76,11 +84,44 @@ class PlannerAgent(BaseAgent[_PlanInput, TestSchedule]):
         )
 
         schedule = TestSchedule(plan_id=inp.plan.id, milestones=draft.milestones)
+        valid_test_case_ids = {tc.id for tc in inp.plan.test_cases}
+        resource_by_id = {resource.id: resource for resource in inp.resources}
+        rejected: list[str] = []
         for a in draft.assignments:
+            if a.test_case_id not in valid_test_case_ids:
+                rejected.append(f"unknown test case {a.test_case_id}")
+                continue
+            resource_ids = [rid for rid in a.resource_ids if rid in resource_by_id]
+            unknown_resource_ids = sorted(set(a.resource_ids) - set(resource_ids))
+            if unknown_resource_ids:
+                rejected.append(
+                    f"{a.test_case_id}: unknown resources {', '.join(unknown_resource_ids)}"
+                )
+            if not resource_ids:
+                continue
+            if a.end < a.start:
+                rejected.append(f"{a.test_case_id}: end before start")
+                continue
             schedule.assignments[a.test_case_id] = ScheduledAssignment(
                 start=a.start,
                 end=a.end,
-                resource_ids=a.resource_ids,
+                resource_ids=resource_ids,
                 service=a.service,
             )
+        if rejected:
+            await self.ctx.memory.log_event(
+                self.ctx.session_id,
+                actor=self.name,
+                kind="planning_warning",
+                content="\n".join(rejected),
+            )
+        for tc in inp.plan.test_cases:
+            assignment = schedule.assignments.get(tc.id)
+            if assignment is None:
+                continue
+            tc.status = TestCaseStatus.PLANNED
+            tc.assignee = ", ".join(
+                resource_by_id[rid].name for rid in assignment.resource_ids
+            )
+        inp.plan.schedule = schedule
         return schedule

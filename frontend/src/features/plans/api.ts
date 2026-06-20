@@ -6,8 +6,10 @@ import type {
   JobStatus,
   PlanListItem,
   PlanListResponse,
+  TestCaseStatus,
   TestPlan,
   TestPlanSummary,
+  TestSchedule,
 } from "@/lib/api/types";
 
 export async function listPlans(projectId: string): Promise<PlanListItem[]> {
@@ -99,4 +101,26 @@ export async function exportPlanJson(
     { responseType: "blob" },
   );
   return res.data;
+}
+
+export async function schedulePlan(
+  projectId: string,
+  planId: string,
+): Promise<TestSchedule> {
+  const res = await http.post<TestSchedule>(
+    `/projects/${projectId}/plans/${planId}/schedule`,
+  );
+  return res.data;
+}
+
+export async function updateTestCaseStatus(
+  projectId: string,
+  planId: string,
+  testCaseId: string,
+  body: { status: TestCaseStatus; status_note?: string | null },
+): Promise<void> {
+  await http.patch(
+    `/projects/${projectId}/plans/${planId}/test-cases/${testCaseId}/status`,
+    body,
+  );
 }

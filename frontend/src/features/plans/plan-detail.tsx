@@ -6,13 +6,24 @@ import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
-import { usePlan, usePlanCoverage } from "./hooks";
+import {
+  usePlan,
+  usePlanCoverage,
+  useSchedulePlan,
+  useUpdateTestCaseStatus,
+} from "./hooks";
 import { exportPlanJson } from "./api";
 import { exportPlanToPdf } from "./pdf-export";
 import { useToast } from "@/components/ui/toast";
 import { usePlanDefects } from "@/features/quality/hooks";
 import { DefectsPanel } from "@/features/quality/defects-panel";
-import type { TestCaseSummary } from "@/lib/api/types";
+import { useResources } from "@/features/projects/hooks";
+import type {
+  Resource,
+  TestCaseStatus,
+  TestCaseSummary,
+  TestSchedule,
+} from "@/lib/api/types";
 
 export function PlanDetailPage() {
   const { projectId, planId } = useParams({ strict: false }) as {
@@ -23,6 +34,9 @@ export function PlanDetailPage() {
   const full = usePlan(projectId, planId, "full");
   const coverage = usePlanCoverage(projectId, planId);
   const defects = usePlanDefects(projectId, planId);
+  const resources = useResources(projectId);
+  const schedule = useSchedulePlan(projectId, planId);
+  const updateStatus = useUpdateTestCaseStatus(projectId, planId);
   const toast = useToast();
 
   const [detail, setDetail] = useState<"summary" | "full">("full");
@@ -61,6 +75,19 @@ export function PlanDetailPage() {
     } catch (e) {
       toast.push({
         title: "PDF export failed",
+        description: (e as Error).message,
+        tone: "error",
+      });
+    }
+  };
+
+  const onRefreshSchedule = async () => {
+    try {
+      await schedule.mutateAsync();
+      toast.push({ title: "Schedule updated", tone: "success" });
+    } catch (e) {
+      toast.push({
+        title: "Schedule failed",
         description: (e as Error).message,
         tone: "error",
       });
@@ -192,11 +219,33 @@ export function PlanDetailPage() {
         {/* Quality / defect report */}
         {defects.data && <DefectsPanel report={defects.data} />}
 
+        <ScheduleCard
+          schedule={full.data?.schedule ?? null}
+          resources={resources.data ?? []}
+          onRefresh={onRefreshSchedule}
+          refreshing={schedule.isPending}
+        />
+
         {/* Test cases */}
         <Card>
           <CardHeader><CardTitle>Test cases</CardTitle></CardHeader>
           <CardBody className="p-0">
-            <TestCaseTable cases={plan.test_cases} detail={detail} />
+            <TestCaseTable
+              cases={plan.test_cases}
+              detail={detail}
+              onStatusChange={async (testCaseId, status) => {
+                try {
+                  await updateStatus.mutateAsync({ testCaseId, status });
+                  toast.push({ title: "Status updated", tone: "success" });
+                } catch (e) {
+                  toast.push({
+                    title: "Status update failed",
+                    description: (e as Error).message,
+                    tone: "error",
+                  });
+                }
+              }}
+            />
           </CardBody>
         </Card>
       </div>
@@ -229,12 +278,96 @@ function CoverageList({ matrix }: { matrix: Record<string, string[]> }) {
   );
 }
 
+function ScheduleCard({
+  schedule,
+  resources,
+  onRefresh,
+  refreshing,
+}: {
+  schedule: TestSchedule | null;
+  resources: Resource[];
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const resourceById = useMemo(
+    () => Object.fromEntries(resources.map((resource) => [resource.id, resource])),
+    [resources],
+  );
+  const assignments = Object.entries(schedule?.assignments ?? {});
+
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle>Schedule</CardTitle>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={onRefresh}
+          disabled={refreshing}
+        >
+          {refreshing ? "Scheduling..." : "Refresh schedule"}
+        </Button>
+      </CardHeader>
+      <CardBody className="p-0">
+        {assignments.length === 0 ? (
+          <p className="p-6 text-sm text-muted-foreground">
+            No assignments yet.
+          </p>
+        ) : (
+          <Table>
+            <THead>
+              <TR>
+                <TH>Test case</TH>
+                <TH>Start</TH>
+                <TH>End</TH>
+                <TH>Resources</TH>
+                <TH>Service</TH>
+              </TR>
+            </THead>
+            <TBody>
+              {assignments.map(([testCaseId, assignment]) => (
+                <TR key={testCaseId}>
+                  <TD className="font-mono text-xs">{testCaseId}</TD>
+                  <TD>{assignment.start}</TD>
+                  <TD>{assignment.end}</TD>
+                  <TD>
+                    {assignment.resource_ids
+                      .map((id) => resourceById[id]?.name ?? id)
+                      .join(", ") || "—"}
+                  </TD>
+                  <TD className="text-muted-foreground">{assignment.service ?? "—"}</TD>
+                </TR>
+              ))}
+            </TBody>
+          </Table>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+const STATUS_OPTIONS: TestCaseStatus[] = [
+  "not_started",
+  "planned",
+  "running",
+  "blocked",
+  "passed",
+  "failed",
+];
+
+function statusLabel(status: TestCaseStatus | undefined) {
+  return (status ?? "not_started").replaceAll("_", " ");
+}
+
 function TestCaseTable({
   cases,
   detail,
+  onStatusChange,
 }: {
   cases: TestCaseSummary[];
   detail: "summary" | "full";
+  onStatusChange: (testCaseId: string, status: TestCaseStatus) => Promise<void>;
 }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   if (cases.length === 0) {
@@ -256,6 +389,7 @@ function TestCaseTable({
           <TH>Risk</TH>
           <TH>Requirements</TH>
           <TH>Duration</TH>
+          <TH>Status</TH>
           <TH>Assignee</TH>
         </TR>
       </THead>
@@ -281,11 +415,26 @@ function TestCaseTable({
                 <TD className="text-muted-foreground">
                   {tc.estimated_duration_minutes ? `${tc.estimated_duration_minutes} min` : "—"}
                 </TD>
+                <TD onClick={(e) => e.stopPropagation()}>
+                  <select
+                    className="h-8 rounded-md border border-border bg-background px-2 text-sm capitalize"
+                    value={tc.status ?? "not_started"}
+                    onChange={(e) =>
+                      onStatusChange(tc.id, e.target.value as TestCaseStatus)
+                    }
+                  >
+                    {STATUS_OPTIONS.map((status) => (
+                      <option key={status} value={status}>
+                        {statusLabel(status)}
+                      </option>
+                    ))}
+                  </select>
+                </TD>
                 <TD className="text-muted-foreground">{tc.assignee ?? "—"}</TD>
               </TR>
               {open && (
                 <TR key={`${tc.id}-d`}>
-                  <TD colSpan={5} className="bg-muted/30">
+                  <TD colSpan={6} className="bg-muted/30">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2 text-sm">
                       {/* Objective */}
                       <div className="md:col-span-2">

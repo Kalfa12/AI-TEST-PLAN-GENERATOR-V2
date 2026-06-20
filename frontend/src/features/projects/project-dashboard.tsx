@@ -19,6 +19,7 @@ import { PlansTable } from "@/features/plans/plans-table";
 import { MembersCard } from "./members-card";
 import { ProjectCoverageCard } from "@/features/traceability/coverage-card";
 import { ChatListCard } from "@/features/chat/chat-list-card";
+import { ResourcesCard } from "./resources-card";
 import { formatDate } from "@/lib/utils";
 
 export function ProjectDashboard() {
@@ -231,6 +232,7 @@ export function ProjectDashboard() {
       <ProjectCoverageCard projectId={projectId} />
       <DocumentsTable projectId={projectId} />
       <PlansTable projectId={projectId} />
+      <ResourcesCard projectId={projectId} />
       <ChatListCard projectId={projectId} />
       <MembersCard projectId={projectId} />
 

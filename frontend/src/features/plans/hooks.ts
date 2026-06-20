@@ -7,7 +7,10 @@ import {
   getPlan,
   getPlanCoverage,
   listPlans,
+  schedulePlan,
+  updateTestCaseStatus,
 } from "./api";
+import type { TestCaseStatus } from "@/lib/api/types";
 
 export function usePlans(projectId: string | undefined) {
   return useQuery({
@@ -57,6 +60,36 @@ export function useDeletePlan(projectId: string) {
   return useMutation({
     mutationFn: (planId: string) => deletePlan(projectId, planId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", projectId] }),
+  });
+}
+
+export function useSchedulePlan(projectId: string, planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => schedulePlan(projectId, planId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan", projectId, planId] });
+      qc.invalidateQueries({ queryKey: ["plans", projectId] });
+    },
+  });
+}
+
+export function useUpdateTestCaseStatus(projectId: string, planId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: {
+      testCaseId: string;
+      status: TestCaseStatus;
+      status_note?: string | null;
+    }) =>
+      updateTestCaseStatus(projectId, planId, body.testCaseId, {
+        status: body.status,
+        status_note: body.status_note,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan", projectId, planId] });
+      qc.invalidateQueries({ queryKey: ["plans", projectId] });
+    },
   });
 }
 

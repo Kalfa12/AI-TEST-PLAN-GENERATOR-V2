@@ -19,6 +19,7 @@ from ai_testplan_generator.models.tests import (
     DetailLevel,
     SourceEvidence,
     TestCase,
+    TestCaseStatus,
     TestPlan,
     TestStep,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "Section",
     "SourceEvidence",
     "TestCase",
+    "TestCaseStatus",
     "TestPlan",
     "TestSchedule",
     "TestStep",

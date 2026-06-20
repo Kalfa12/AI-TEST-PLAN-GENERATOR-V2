@@ -177,8 +177,11 @@ def build_autonomous_graph(ctx: AgentContext) -> Any:
     async def _planner(state: AutonomousState) -> dict[str, Any]:
         if state.plan is None:
             return {"error": "planner called without a plan"}
-        schedule = await planner.invoke(PlannerAgent.Input(plan=state.plan, resources=[]))
-        return {"schedule": schedule}
+        resources = await ctx.memory.list_resources_for_project(state.project_id)
+        schedule = await planner.invoke(
+            PlannerAgent.Input(plan=state.plan, resources=resources)
+        )
+        return {"schedule": schedule, "plan": state.plan}
 
     async def _defect_aggregator(state: AutonomousState) -> dict[str, Any]:
         report = build_defect_report(

@@ -320,6 +320,7 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     from ai_testplan_generator.api.routers.events import router as events_router
     from ai_testplan_generator.api.routers.health import router as health_router
     from ai_testplan_generator.api.routers.plans import router as plans_router
+    from ai_testplan_generator.api.routers.planning import router as planning_router
     from ai_testplan_generator.api.routers.projects import router as projects_router
     from ai_testplan_generator.api.routers.quality import router as quality_router
     from ai_testplan_generator.api.routers.traceability import router as trace_router
@@ -328,6 +329,7 @@ def create_app(*, settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(docs_router)
     app.include_router(plans_router)
+    app.include_router(planning_router)
     app.include_router(quality_router)
     app.include_router(chat_router)
     app.include_router(trace_router)

@@ -14,10 +14,21 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ai_testplan_generator.models.planning import TestSchedule
+
 
 class DetailLevel(StrEnum):
     SUMMARY = "summary"
     DETAILED = "detailed"
+
+
+class TestCaseStatus(StrEnum):
+    NOT_STARTED = "not_started"
+    PLANNED = "planned"
+    RUNNING = "running"
+    BLOCKED = "blocked"
+    PASSED = "passed"
+    FAILED = "failed"
 
 
 class AcceptanceCriterion(BaseModel):
@@ -89,6 +100,8 @@ class TestCase(BaseModel):
     kpis: list[str] = Field(default_factory=list)
     # Template: Assignee column
     assignee: str | None = None
+    status: TestCaseStatus = TestCaseStatus.NOT_STARTED
+    status_note: str | None = None
     tags: list[str] = Field(default_factory=list)
     # Reviewer feedback loop data.
     review_notes: list[str] = Field(default_factory=list)
@@ -125,3 +138,4 @@ class TestPlan(BaseModel):
     test_cases: list[TestCase] = Field(default_factory=list)
     # requirement_id -> [test_case_id, ...] matrix.
     coverage_matrix: dict[str, list[str]] = Field(default_factory=dict)
+    schedule: TestSchedule | None = None

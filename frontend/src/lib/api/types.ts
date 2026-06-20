@@ -96,6 +96,14 @@ export interface SourceEvidence {
   relation: string;
 }
 
+export type TestCaseStatus =
+  | "not_started"
+  | "planned"
+  | "running"
+  | "blocked"
+  | "passed"
+  | "failed";
+
 export interface TestCaseSummary {
   id: string;
   title: string;
@@ -111,9 +119,46 @@ export interface TestCaseSummary {
   dependencies?: string[];
   kpis?: string[];
   assignee?: string | null;
+  status?: TestCaseStatus;
+  status_note?: string | null;
   steps?: TestStep[];
   acceptance_criteria?: AcceptanceCriterion[];
   source_evidence?: SourceEvidence[];
+}
+
+export interface Resource {
+  id: string;
+  project_id?: string | null;
+  name: string;
+  service: string;
+  role?: string | null;
+  availability_pct: number;
+}
+
+export interface ResourceListResponse {
+  items: Resource[];
+  total: number;
+}
+
+export interface Milestone {
+  id: string;
+  name: string;
+  due: string;
+  gate: boolean;
+  depends_on: string[];
+}
+
+export interface ScheduledAssignment {
+  start: string;
+  end: string;
+  resource_ids: string[];
+  service?: string | null;
+}
+
+export interface TestSchedule {
+  plan_id: string;
+  milestones: Milestone[];
+  assignments: Record<string, ScheduledAssignment>;
 }
 
 export interface TestPlanSummary {
@@ -133,6 +178,7 @@ export interface TestPlanSummary {
   entry_criteria?: string[];
   exit_criteria?: string[];
   risks?: string[];
+  schedule?: TestSchedule | null;
 }
 
 export type TestPlan = Omit<TestPlanSummary, "n_test_cases"> & {
