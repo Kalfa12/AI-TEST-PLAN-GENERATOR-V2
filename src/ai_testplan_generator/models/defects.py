@@ -23,6 +23,7 @@ DetectionDifficulty = Literal["mechanical", "llm", "domain_expert"]
 TargetKind = Literal["requirement", "test_case", "test_plan"]
 Detector = Literal["static", "reviewer", "requirement_reviewer", "traceability"]
 DefectCategory = Literal["requirement", "test_plan"]
+Industry = Literal["generic", "aerospace", "automotive", "medical", "energy"]
 
 
 class DefectType(StrEnum):
@@ -517,6 +518,66 @@ class DefectReport(BaseModel):
         self.approved = counts["critical"] == 0
 
 
+INDUSTRY_STANDARD_REFS: dict[Industry, list[str]] = {
+    "generic": ["ISO/IEC/IEEE 29148", "ISO/IEC/IEEE 29119", "INCOSE GtWR"],
+    "aerospace": ["DO-178C", "ARP4754A", "DO-254", "ISO/IEC/IEEE 29148"],
+    "automotive": ["ISO 26262", "ASPICE", "ISO/SAE 21434", "ISO/IEC/IEEE 29148"],
+    "medical": ["IEC 62304", "ISO 14971", "IEC 62366", "ISO 13485"],
+    "energy": ["IEC 61508", "IEC 62443", "IEC 61850", "ISO/IEC/IEEE 29148"],
+}
+
+INDUSTRY_DEFECT_PRIORITIES: dict[Industry, list[DefectType]] = {
+    "generic": [],
+    "aerospace": [
+        DefectType.TRACEABILITY_GAP,
+        DefectType.UNTRACEABLE_TEST_CASE,
+        DefectType.INCORRECT_ACCEPTANCE_CRITERIA,
+        DefectType.MISSING_RISK_ANALYSIS,
+    ],
+    "automotive": [
+        DefectType.MISSING_RISK_ANALYSIS,
+        DefectType.INCORRECT_ACCEPTANCE_CRITERIA,
+        DefectType.TRACEABILITY_GAP,
+        DefectType.SEVERITY_PRIORITY_CONFUSION,
+    ],
+    "medical": [
+        DefectType.MISSING_RISK_ANALYSIS,
+        DefectType.UNRUNNABLE_PRECONDITIONS,
+        DefectType.INCORRECT_ACCEPTANCE_CRITERIA,
+        DefectType.TRACEABILITY_GAP,
+    ],
+    "energy": [
+        DefectType.MISSING_RISK_ANALYSIS,
+        DefectType.INCONSISTENCY_INTRA_DOC,
+        DefectType.INCORRECT_ACCEPTANCE_CRITERIA,
+        DefectType.TRACEABILITY_GAP,
+    ],
+}
+
+
+def normalize_industry(industry: str | None) -> Industry:
+    if industry in INDUSTRY_STANDARD_REFS:
+        return industry  # type: ignore[return-value]
+    return "generic"
+
+
+def industry_standard_refs(industry: str | None) -> list[str]:
+    return list(INDUSTRY_STANDARD_REFS[normalize_industry(industry)])
+
+
+def prioritized_defect_types_for_industry(industry: str | None) -> list[DefectType]:
+    return list(INDUSTRY_DEFECT_PRIORITIES[normalize_industry(industry)])
+
+
+def defect_catalog_for_industry(industry: str | None) -> list[DefectCatalogEntry]:
+    priorities = prioritized_defect_types_for_industry(industry)
+    rank = {defect_type: idx for idx, defect_type in enumerate(priorities)}
+    return sorted(
+        CATALOG.values(),
+        key=lambda entry: (rank.get(entry.id, len(rank)), entry.name),
+    )
+
+
 __all__ = [
     "CATALOG",
     "DefectCatalogEntry",
@@ -526,6 +587,12 @@ __all__ = [
     "DefectType",
     "DetectionDifficulty",
     "Detector",
+    "Industry",
+    "INDUSTRY_STANDARD_REFS",
+    "defect_catalog_for_industry",
+    "industry_standard_refs",
+    "normalize_industry",
+    "prioritized_defect_types_for_industry",
     "Severity",
     "TargetKind",
 ]

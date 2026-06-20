@@ -37,6 +37,20 @@ class AgentContext:
     # published to the session SSE stream so the frontend can track progress.
     event_broker: Any | None = field(default=None, compare=False)
 
+    async def project_industry(self) -> str:
+        if self.config and self.config.get("industry"):
+            return str(self.config["industry"])
+        if self.project_repo is None or self.project_id is None:
+            return "generic"
+        try:
+            project = await self.project_repo.get_project(self.project_id)
+        except Exception:  # noqa: BLE001
+            return "generic"
+        industry = getattr(project, "industry", None)
+        if industry is None:
+            return "generic"
+        return str(getattr(industry, "value", industry))
+
 
 class BaseAgent(ABC, Generic[TIn, TOut]):
     """Base class for typed async agents.

@@ -15,7 +15,7 @@ from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
 from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.models.defects import DefectType
-from ai_testplan_generator.prompts.library import REVIEWER_SYSTEM
+from ai_testplan_generator.prompts.library import REVIEWER_SYSTEM, with_industry_context
 
 Severity = Literal["critical", "major", "minor"]
 
@@ -55,8 +55,12 @@ class ReviewerAgent(BaseAgent[_ReviewInput, ReviewReport]):
                 f"  criteria: {[c.statement for c in tc.acceptance_criteria[:4]]}"
             )
 
+        industry = await self.ctx.project_industry()
         messages = [
-            ChatMessage(role="system", content=REVIEWER_SYSTEM),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(REVIEWER_SYSTEM, industry),
+            ),
             ChatMessage(
                 role="user",
                 content=(

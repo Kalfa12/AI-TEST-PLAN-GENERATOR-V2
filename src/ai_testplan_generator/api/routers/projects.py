@@ -25,6 +25,7 @@ from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.projects import (
     DEFAULT_MONTHLY_BUDGET_USD,
     Project,
+    ProjectIndustry,
     ProjectMember,
     ProjectRepository,
     ProjectRole,
@@ -44,6 +45,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 class CreateProjectRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     description: str = ""
+    industry: ProjectIndustry = ProjectIndustry.GENERIC
     monthly_budget_usd: float = Field(default=DEFAULT_MONTHLY_BUDGET_USD, ge=0)
     # Deprecated input kept for old clients; the server always uses current_user.id.
     owner_id: str | None = None
@@ -52,6 +54,7 @@ class CreateProjectRequest(BaseModel):
 class UpdateProjectRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
     description: str | None = None
+    industry: ProjectIndustry | None = None
 
 
 class AddMemberRequest(BaseModel):
@@ -69,6 +72,7 @@ class ProjectResponse(BaseModel):
     id: str
     name: str
     description: str
+    industry: ProjectIndustry
     owner_id: str
     created_at: str
     archived_at: str | None = None
@@ -85,6 +89,7 @@ class ProjectResponse(BaseModel):
             id=p.id,
             name=p.name,
             description=p.description,
+            industry=p.industry,
             owner_id=p.owner_id,
             created_at=p.created_at.isoformat(),
             archived_at=p.archived_at.isoformat() if p.archived_at else None,
@@ -152,6 +157,7 @@ async def create_project(
         name=body.name,
         description=body.description,
         owner_id=current_user.id,
+        industry=body.industry,
         monthly_budget_usd=body.monthly_budget_usd,
     )
     await repo.add_member(proj.id, current_user.id, ProjectRole.OWNER)
@@ -220,7 +226,10 @@ async def update_project(
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> ProjectResponse:
     proj = await repo.update_project(
-        project_id, name=body.name, description=body.description
+        project_id,
+        name=body.name,
+        description=body.description,
+        industry=body.industry,
     )
     if proj is None:
         raise NotFoundError(f"Project '{project_id}' not found.")

@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.agents.state import AutonomousState
 from ai_testplan_generator.llm import ChatMessage
-from ai_testplan_generator.prompts.library import ORCHESTRATOR_SYSTEM
+from ai_testplan_generator.prompts.library import ORCHESTRATOR_SYSTEM, with_industry_context
 
 NextStep = Literal[
     "analyst",
@@ -106,8 +106,12 @@ class OrchestratorAgent(BaseAgent[AutonomousState, OrchestratorDecision]):
         if (has_critical or has_major or defect_critical) and budget_left:
             # Ask the LLM whether it truly justifies a loopback or whether
             # findings are actionable in-place.
+            industry = await self.ctx.project_industry()
             messages = [
-                ChatMessage(role="system", content=ORCHESTRATOR_SYSTEM),
+                ChatMessage(
+                    role="system",
+                    content=with_industry_context(ORCHESTRATOR_SYSTEM, industry),
+                ),
                 ChatMessage(
                     role="user",
                     content=(

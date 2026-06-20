@@ -19,12 +19,14 @@ import structlog
 _log = structlog.get_logger(__name__)
 
 DEFAULT_MONTHLY_BUDGET_USD = 50.0
+DEFAULT_PROJECT_INDUSTRY = "generic"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS projects (
     id          TEXT PRIMARY KEY,
     name        TEXT NOT NULL,
     description TEXT NOT NULL DEFAULT '',
+    industry    TEXT NOT NULL DEFAULT 'generic',
     owner_id    TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL,
     archived_at TEXT,
@@ -51,11 +53,20 @@ class ProjectRole(StrEnum):
     VIEWER = "viewer"
 
 
+class ProjectIndustry(StrEnum):
+    GENERIC = "generic"
+    AEROSPACE = "aerospace"
+    AUTOMOTIVE = "automotive"
+    MEDICAL = "medical"
+    ENERGY = "energy"
+
+
 @dataclass
 class Project:
     id: str = field(default_factory=lambda: f"proj_{uuid4().hex[:10]}")
     name: str = ""
     description: str = ""
+    industry: ProjectIndustry = ProjectIndustry.GENERIC
     owner_id: str = ""
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     archived_at: datetime | None = None
@@ -97,7 +108,7 @@ class ProjectRepository:
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
         await self._conn.executescript(_SCHEMA)
-        await self._ensure_budget_columns()
+        await self._ensure_project_columns()
         await self._conn.commit()
         _log.info("project_repo_init", db_path=path_str)
 
@@ -106,11 +117,15 @@ class ProjectRepository:
             raise RuntimeError("ProjectRepository not initialised — call create() first")
         return self._conn
 
-    async def _ensure_budget_columns(self) -> None:
+    async def _ensure_project_columns(self) -> None:
         async with self._db().execute("PRAGMA table_info(projects)") as cur:
             rows = await cur.fetchall()
         columns = {row[1] for row in rows}
         migrations = []
+        if "industry" not in columns:
+            migrations.append(
+                "ALTER TABLE projects ADD COLUMN industry TEXT NOT NULL DEFAULT 'generic'"
+            )
         if "monthly_budget_usd" not in columns:
             migrations.append(
                 "ALTER TABLE projects ADD COLUMN monthly_budget_usd REAL NOT NULL DEFAULT 50.0"
@@ -131,24 +146,27 @@ class ProjectRepository:
         name: str,
         description: str = "",
         owner_id: str = "",
+        industry: ProjectIndustry = ProjectIndustry.GENERIC,
         monthly_budget_usd: float = DEFAULT_MONTHLY_BUDGET_USD,
     ) -> Project:
         proj = Project(
             name=name,
             description=description,
             owner_id=owner_id,
+            industry=ProjectIndustry(industry),
             monthly_budget_usd=monthly_budget_usd,
         )
         await self._db().execute(
             """
             INSERT INTO projects
-                (id, name, description, owner_id, created_at, monthly_budget_usd)
-            VALUES (?,?,?,?,?,?)
+                (id, name, description, industry, owner_id, created_at, monthly_budget_usd)
+            VALUES (?,?,?,?,?,?,?)
             """,
             (
                 proj.id,
                 proj.name,
                 proj.description,
+                proj.industry.value,
                 proj.owner_id,
                 proj.created_at.isoformat(),
                 proj.monthly_budget_usd,
@@ -160,7 +178,7 @@ class ProjectRepository:
     async def get_project(self, project_id: str) -> Project | None:
         async with self._db().execute(
             """
-            SELECT id,name,description,owner_id,created_at,archived_at,
+            SELECT id,name,description,industry,owner_id,created_at,archived_at,
                    monthly_budget_usd,budget_override_until,budget_override_usd
             FROM projects WHERE id=?
             """,
@@ -177,7 +195,7 @@ class ProjectRepository:
         offset: int = 0,
     ) -> list[Project]:
         sql = (
-            "SELECT id,name,description,owner_id,created_at,archived_at,"
+            "SELECT id,name,description,industry,owner_id,created_at,archived_at,"
             "monthly_budget_usd,budget_override_until,budget_override_usd FROM projects"
         )
         params: tuple[Any, ...] = ()
@@ -198,7 +216,7 @@ class ProjectRepository:
         offset: int = 0,
     ) -> list[Project]:
         sql = (
-            "SELECT p.id,p.name,p.description,p.owner_id,p.created_at,p.archived_at,"
+            "SELECT p.id,p.name,p.description,p.industry,p.owner_id,p.created_at,p.archived_at,"
             "p.monthly_budget_usd,p.budget_override_until,p.budget_override_usd "
             "FROM projects p "
             "JOIN project_members pm ON pm.project_id = p.id "
@@ -219,19 +237,22 @@ class ProjectRepository:
         *,
         name: str | None = None,
         description: str | None = None,
+        industry: ProjectIndustry | None = None,
     ) -> Project | None:
         proj = await self.get_project(project_id)
         if proj is None:
             return None
         new_name = name if name is not None else proj.name
         new_desc = description if description is not None else proj.description
+        new_industry = ProjectIndustry(industry) if industry is not None else proj.industry
         await self._db().execute(
-            "UPDATE projects SET name=?, description=? WHERE id=?",
-            (new_name, new_desc, project_id),
+            "UPDATE projects SET name=?, description=?, industry=? WHERE id=?",
+            (new_name, new_desc, new_industry.value, project_id),
         )
         await self._db().commit()
         proj.name = new_name
         proj.description = new_desc
+        proj.industry = new_industry
         return proj
 
     async def update_project_budget(
@@ -327,12 +348,24 @@ class ProjectRepository:
 # ------------------------------------------------------------------
 
 def _row_to_project(
-    row: tuple[str, str, str, str, str, str | None, float, str | None, float | None],
+    row: tuple[
+        str,
+        str,
+        str,
+        str,
+        str,
+        str,
+        str | None,
+        float,
+        str | None,
+        float | None,
+    ],
 ) -> Project:
     (
         pid,
         name,
         desc,
+        industry,
         owner_id,
         created_at,
         archived_at,
@@ -344,6 +377,7 @@ def _row_to_project(
         id=pid,
         name=name,
         description=desc,
+        industry=ProjectIndustry(industry or DEFAULT_PROJECT_INDUSTRY),
         owner_id=owner_id,
         created_at=datetime.fromisoformat(created_at),
         archived_at=datetime.fromisoformat(archived_at) if archived_at else None,

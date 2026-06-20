@@ -15,6 +15,7 @@ import {
   updateProjectBudget,
   type ProjectRole,
 } from "./api";
+import type { ProjectIndustry } from "@/lib/api/types";
 
 export function useProjects() {
   return useQuery({ queryKey: ["projects"], queryFn: listProjects });
@@ -39,7 +40,11 @@ export function useCreateProject() {
 export function useUpdateProject(id: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { name?: string; description?: string }) =>
+    mutationFn: (body: {
+      name?: string;
+      description?: string;
+      industry?: ProjectIndustry;
+    }) =>
       updateProject(id, body),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["projects"] });

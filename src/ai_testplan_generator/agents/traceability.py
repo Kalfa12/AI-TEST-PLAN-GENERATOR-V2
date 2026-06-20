@@ -20,7 +20,7 @@ from ai_testplan_generator.llm.prompt_safety import (
 )
 from ai_testplan_generator.models import Requirement, SourceEvidence, TestCase, TestPlan
 from ai_testplan_generator.models.traceability import TraceKind, TraceLink
-from ai_testplan_generator.prompts.library import TRACEABILITY_SYSTEM
+from ai_testplan_generator.prompts.library import TRACEABILITY_SYSTEM, with_industry_context
 
 
 class _TraceCheck(BaseModel):
@@ -48,6 +48,8 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
 
     async def run(self, inp: _TraceInput) -> TraceabilityReport:
         req_by_id = {r.id: r for r in inp.requirements}
+        industry = await self.ctx.project_industry()
+        system_prompt = with_industry_context(TRACEABILITY_SYSTEM, industry)
 
         sem = asyncio.Semaphore(8)
 
@@ -76,7 +78,7 @@ class TraceabilityAgent(BaseAgent[_TraceInput, TraceabilityReport]):
                     for c in source_chunks
                 )
                 messages = [
-                    ChatMessage(role="system", content=TRACEABILITY_SYSTEM),
+                    ChatMessage(role="system", content=system_prompt),
                     ChatMessage(
                         role="user",
                         content=(

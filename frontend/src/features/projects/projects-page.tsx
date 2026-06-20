@@ -10,19 +10,36 @@ import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCreateProject, useProjects } from "./hooks";
 import { formatDate } from "@/lib/utils";
+import type { ProjectIndustry } from "@/lib/api/types";
 
 const schema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(500).optional(),
+  industry: z.enum(["generic", "aerospace", "automotive", "medical", "energy"]),
 });
 
 type FormValues = z.infer<typeof schema>;
+
+const INDUSTRIES: Array<{ value: ProjectIndustry; label: string }> = [
+  { value: "generic", label: "Generic" },
+  { value: "aerospace", label: "Aerospace" },
+  { value: "automotive", label: "Automotive" },
+  { value: "medical", label: "Medical" },
+  { value: "energy", label: "Energy" },
+];
+
+function industryLabel(industry: ProjectIndustry | undefined) {
+  return INDUSTRIES.find((item) => item.value === industry)?.label ?? "Generic";
+}
 
 export function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
   const create = useCreateProject();
   const [open, setOpen] = useState(false);
-  const form = useForm<FormValues>({ resolver: zodResolver(schema) });
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { industry: "generic" },
+  });
 
   const onSubmit = async (values: FormValues) => {
     await create.mutateAsync(values);
@@ -58,6 +75,7 @@ export function ProjectsPage() {
                 </CardHeader>
                 <CardBody className="text-sm text-muted-foreground space-y-1">
                   {p.description && <p>{p.description}</p>}
+                  <p className="text-xs">Industry: {industryLabel(p.industry)}</p>
                   <p className="text-xs">Created {formatDate(p.created_at)}</p>
                 </CardBody>
               </Card>
@@ -87,6 +105,19 @@ export function ProjectsPage() {
           <div className="space-y-1">
             <label className="text-sm font-medium">Description</label>
             <Input {...form.register("description")} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Industry</label>
+            <select
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              {...form.register("industry")}
+            >
+              {INDUSTRIES.map((industry) => (
+                <option key={industry.value} value={industry.value}>
+                  {industry.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>

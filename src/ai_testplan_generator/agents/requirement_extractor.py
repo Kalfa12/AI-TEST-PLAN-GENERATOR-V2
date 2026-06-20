@@ -28,9 +28,11 @@ class RequirementExtractorAgent(BaseAgent[_ExtractInput, _ExtractOutput]):
     Input = _ExtractInput
 
     async def run(self, inp: _ExtractInput) -> _ExtractOutput:
+        industry = await self.ctx.project_industry()
         extractor = RequirementExtractor(
             self.ctx.llm,
             project_id=self.ctx.project_id,
+            industry=industry,
             user_feedback=inp.user_feedback,
         )
         raw = await extractor.extract_from_chunks(inp.chunks, concurrency=inp.concurrency)

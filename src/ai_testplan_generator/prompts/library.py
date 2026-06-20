@@ -15,6 +15,36 @@ Design notes for every prompt:
 
 from __future__ import annotations
 
+from ai_testplan_generator.models.defects import (
+    industry_standard_refs,
+    prioritized_defect_types_for_industry,
+)
+
+
+def format_industry_block(industry: str | None) -> str:
+    """Return prompt guidance for the project's controlled industry."""
+    refs = industry_standard_refs(industry)
+    priority_defects = prioritized_defect_types_for_industry(industry)
+    industry_value = (industry or "generic").lower()
+    priority_line = (
+        ", ".join(defect.value for defect in priority_defects)
+        if priority_defects
+        else "use the general defect taxonomy without industry-specific promotion"
+    )
+    return (
+        "\n\nPROJECT INDUSTRY CONTEXT\n"
+        f"- Industry: {industry_value}.\n"
+        f"- Prioritise relevant standards and vocabulary: {', '.join(refs)}.\n"
+        f"- When reviewing or ranking defects, pay special attention to: {priority_line}.\n"
+        "- Do not invent certification claims or compliance status. Use this only "
+        "to tune terminology, risk emphasis, test depth, and review priorities."
+    )
+
+
+def with_industry_context(system_prompt: str, industry: str | None) -> str:
+    return system_prompt.rstrip() + format_industry_block(industry)
+
+
 REQUIREMENT_EXTRACTOR_SYSTEM = """
 You are a senior systems engineer specialised in requirement analysis for
 industrial products. Your job is to read a short chunk of a source

@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.llm import ChatMessage
 from ai_testplan_generator.models import DetailLevel, Requirement, TestPlan
-from ai_testplan_generator.prompts.library import TEST_ARCHITECT_SYSTEM
+from ai_testplan_generator.prompts.library import TEST_ARCHITECT_SYSTEM, with_industry_context
 
 
 class _ArchitectInput(BaseModel):
@@ -61,8 +61,13 @@ class TestArchitectAgent(BaseAgent[_ArchitectInput, TestPlan]):
                 f"{joined}\n"
             )
 
+        industry = await self.ctx.project_industry()
         messages = [
-            ChatMessage(role="system", content=TEST_ARCHITECT_SYSTEM + feedback_block),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(TEST_ARCHITECT_SYSTEM, industry)
+                + feedback_block,
+            ),
             ChatMessage(
                 role="user",
                 content=(

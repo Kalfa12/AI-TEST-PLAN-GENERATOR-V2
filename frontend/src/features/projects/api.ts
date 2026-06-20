@@ -1,6 +1,7 @@
 import { http } from "@/lib/api/http";
 import type {
   Project,
+  ProjectIndustry,
   ProjectListResponse,
   Resource,
   ResourceListResponse,
@@ -19,6 +20,7 @@ export async function getProject(id: string): Promise<Project> {
 export async function createProject(body: {
   name: string;
   description?: string;
+  industry?: ProjectIndustry;
   monthly_budget_usd?: number;
 }): Promise<Project> {
   const res = await http.post<Project>("/projects", body);
@@ -27,7 +29,7 @@ export async function createProject(body: {
 
 export async function updateProject(
   id: string,
-  body: { name?: string; description?: string },
+  body: { name?: string; description?: string; industry?: ProjectIndustry },
 ): Promise<Project> {
   const res = await http.patch<Project>(`/projects/${id}`, body);
   return res.data;

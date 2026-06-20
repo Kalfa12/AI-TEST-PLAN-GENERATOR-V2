@@ -15,6 +15,7 @@ from ai_testplan_generator.llm.prompt_safety import (
     format_untrusted_document_chunk,
 )
 from ai_testplan_generator.models import Document
+from ai_testplan_generator.prompts.library import with_industry_context
 
 
 class CorpusSummary(BaseModel):
@@ -60,15 +61,20 @@ class DocumentAnalystAgent(BaseAgent[_AnalystInput, CorpusSummary]):
                 )
             )
 
+        industry = await self.ctx.project_industry()
+        system_prompt = with_industry_context(
+            (
+                "You summarise an industrial project's documentation corpus. "
+                "Be concrete and terse. Your summary will be reused by "
+                "downstream agents, so prefer specific subsystem names and "
+                "standard references over generic labels."
+            ),
+            industry,
+        )
         messages = [
             ChatMessage(
                 role="system",
-                content=(
-                    "You summarise an industrial project's documentation corpus. "
-                    "Be concrete and terse. Your summary will be reused by "
-                    "downstream agents, so prefer specific subsystem names and "
-                    "standard references over generic labels."
-                ),
+                content=system_prompt,
             ),
             ChatMessage(
                 role="user",

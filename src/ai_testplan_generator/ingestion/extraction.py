@@ -26,7 +26,10 @@ from ai_testplan_generator.llm.prompt_safety import (
     format_untrusted_document_chunk,
 )
 from ai_testplan_generator.models import Chunk, Requirement, RequirementKind
-from ai_testplan_generator.prompts.library import REQUIREMENT_EXTRACTOR_SYSTEM
+from ai_testplan_generator.prompts.library import (
+    REQUIREMENT_EXTRACTOR_SYSTEM,
+    with_industry_context,
+)
 
 
 class _ExtractedRequirement(BaseModel):
@@ -52,10 +55,12 @@ class RequirementExtractor:
         gateway: LLMGateway,
         *,
         project_id: str | None = None,
+        industry: str | None = None,
         user_feedback: list[str] | None = None,
     ) -> None:
         self._llm = gateway
         self._project_id = project_id
+        self._industry = industry or "generic"
         self._user_feedback = user_feedback or []
 
     async def extract_from_chunk(self, chunk: Chunk) -> list[Requirement]:
@@ -74,7 +79,13 @@ class RequirementExtractor:
             )
 
         messages = [
-            ChatMessage(role="system", content=REQUIREMENT_EXTRACTOR_SYSTEM + feedback_block),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(
+                    REQUIREMENT_EXTRACTOR_SYSTEM, self._industry
+                )
+                + feedback_block,
+            ),
             ChatMessage(
                 role="user",
                 content=(

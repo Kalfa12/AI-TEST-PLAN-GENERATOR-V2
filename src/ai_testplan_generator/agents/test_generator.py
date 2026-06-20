@@ -27,7 +27,7 @@ from ai_testplan_generator.models import (
     TestCase,
     TestStep,
 )
-from ai_testplan_generator.prompts.library import TEST_GENERATOR_SYSTEM
+from ai_testplan_generator.prompts.library import TEST_GENERATOR_SYSTEM, with_industry_context
 
 
 class _GenInput(BaseModel):
@@ -191,8 +191,13 @@ class TestGeneratorAgent(BaseAgent[_GenInput, _GenOutput]):
                 f"{joined}\n"
             )
 
+        industry = await self.ctx.project_industry()
         messages = [
-            ChatMessage(role="system", content=TEST_GENERATOR_SYSTEM + feedback_block),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(TEST_GENERATOR_SYSTEM, industry)
+                + feedback_block,
+            ),
             ChatMessage(
                 role="user",
                 content=(

@@ -14,7 +14,10 @@ from ai_testplan_generator.agents.base import BaseAgent
 from ai_testplan_generator.agents.reviewer import ReviewReport
 from ai_testplan_generator.llm import ChatMessage
 from ai_testplan_generator.models import Requirement
-from ai_testplan_generator.prompts.library import REQUIREMENT_REVIEWER_SYSTEM
+from ai_testplan_generator.prompts.library import (
+    REQUIREMENT_REVIEWER_SYSTEM,
+    with_industry_context,
+)
 
 
 class _ReqReviewInput(BaseModel):
@@ -35,8 +38,12 @@ class RequirementReviewerAgent(BaseAgent[_ReqReviewInput, ReviewReport]):
             + (f"  rationale: {r.rationale}" if r.rationale else "")
             for r in sample
         )
+        industry = await self.ctx.project_industry()
         messages = [
-            ChatMessage(role="system", content=REQUIREMENT_REVIEWER_SYSTEM),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(REQUIREMENT_REVIEWER_SYSTEM, industry),
+            ),
             ChatMessage(
                 role="user",
                 content=(

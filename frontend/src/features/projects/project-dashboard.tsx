@@ -21,6 +21,19 @@ import { ProjectCoverageCard } from "@/features/traceability/coverage-card";
 import { ChatListCard } from "@/features/chat/chat-list-card";
 import { ResourcesCard } from "./resources-card";
 import { formatDate } from "@/lib/utils";
+import type { ProjectIndustry } from "@/lib/api/types";
+
+const INDUSTRIES: Array<{ value: ProjectIndustry; label: string }> = [
+  { value: "generic", label: "Generic" },
+  { value: "aerospace", label: "Aerospace" },
+  { value: "automotive", label: "Automotive" },
+  { value: "medical", label: "Medical" },
+  { value: "energy", label: "Energy" },
+];
+
+function industryLabel(industry: ProjectIndustry | undefined) {
+  return INDUSTRIES.find((item) => item.value === industry)?.label ?? "Generic";
+}
 
 export function ProjectDashboard() {
   const { projectId } = useParams({ strict: false }) as { projectId: string };
@@ -37,6 +50,7 @@ export function ProjectDashboard() {
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  const [industry, setIndustry] = useState<ProjectIndustry>("generic");
   const [monthlyBudget, setMonthlyBudget] = useState("");
   const [overrideBudget, setOverrideBudget] = useState("");
   const [overrideUntil, setOverrideUntil] = useState("");
@@ -44,6 +58,7 @@ export function ProjectDashboard() {
   const openEdit = () => {
     setName(project.data?.name ?? "");
     setDescription(project.data?.description ?? "");
+    setIndustry(project.data?.industry ?? "generic");
     setEditOpen(true);
   };
 
@@ -60,7 +75,7 @@ export function ProjectDashboard() {
 
   const onSave = async () => {
     try {
-      await update.mutateAsync({ name, description });
+      await update.mutateAsync({ name, description, industry });
       toast.push({ title: "Project updated", tone: "success" });
       setEditOpen(false);
     } catch (e) {
@@ -145,6 +160,11 @@ export function ProjectDashboard() {
           {project.data?.description && (
             <p className="text-sm text-muted-foreground mt-1">
               {project.data.description}
+            </p>
+          )}
+          {project.data && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Industry profile: {industryLabel(project.data.industry)}
             </p>
           )}
         </div>
@@ -249,6 +269,20 @@ export function ProjectDashboard() {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
             />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Industry</label>
+            <select
+              className="h-10 w-full rounded-md border border-border bg-background px-3 text-sm"
+              value={industry}
+              onChange={(e) => setIndustry(e.target.value as ProjectIndustry)}
+            >
+              {INDUSTRIES.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex justify-end gap-2">
             <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>

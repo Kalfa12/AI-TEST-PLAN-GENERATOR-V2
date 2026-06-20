@@ -17,6 +17,7 @@ class TestProjectCRUD:
         assert body["name"] == "Pump Controller Tests"
         assert body["id"].startswith("proj_")
         assert body["owner_id"] == "usr_test000001"
+        assert body["industry"] == "generic"
         assert body["monthly_budget_usd"] == 50.0
         assert body["current_month_spend_usd"] == 0.0
 
@@ -49,14 +50,25 @@ class TestProjectCRUD:
 
     async def test_update_project(self, client: AsyncClient) -> None:
         create_resp = await client.post(
-            "/projects", json={"name": "Old Name"}
+            "/projects", json={"name": "Old Name", "industry": "automotive"}
         )
         project_id = create_resp.json()["id"]
         patch_resp = await client.patch(
-            f"/projects/{project_id}", json={"name": "New Name"}
+            f"/projects/{project_id}",
+            json={"name": "New Name", "industry": "aerospace"},
         )
         assert patch_resp.status_code == 200
         assert patch_resp.json()["name"] == "New Name"
+        assert patch_resp.json()["industry"] == "aerospace"
+
+    async def test_create_project_rejects_unknown_industry(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.post(
+            "/projects",
+            json={"name": "Unknown Industry", "industry": "space-mining"},
+        )
+        assert resp.status_code == 422
 
     async def test_update_project_budget(self, client: AsyncClient) -> None:
         create_resp = await client.post(

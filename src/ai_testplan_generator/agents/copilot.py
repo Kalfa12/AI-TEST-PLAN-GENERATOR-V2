@@ -19,7 +19,7 @@ from ai_testplan_generator.llm.prompt_safety import (
     format_untrusted_document_chunk,
 )
 from ai_testplan_generator.memory.base import EpisodeEvent
-from ai_testplan_generator.prompts.library import COPILOT_SYSTEM
+from ai_testplan_generator.prompts.library import COPILOT_SYSTEM, with_industry_context
 
 CopilotAction = Literal[
     "none",
@@ -79,7 +79,13 @@ class CopilotAgent(BaseAgent[_CopilotInput, CopilotReply]):
         for r in bundle.requirements:
             grounding.append(f"[req:{r.id}] {r.title} - {r.statement}")
 
-        messages: list[ChatMessage] = [ChatMessage(role="system", content=COPILOT_SYSTEM)]
+        industry = await self.ctx.project_industry()
+        messages: list[ChatMessage] = [
+            ChatMessage(
+                role="system",
+                content=with_industry_context(COPILOT_SYSTEM, industry),
+            )
+        ]
         if grounding:
             messages.append(
                 ChatMessage(

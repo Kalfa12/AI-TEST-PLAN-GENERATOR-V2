@@ -16,7 +16,7 @@ from ai_testplan_generator.models import (
     TestSchedule,
 )
 from ai_testplan_generator.models.planning import ScheduledAssignment
-from ai_testplan_generator.prompts.library import PLANNER_SYSTEM
+from ai_testplan_generator.prompts.library import PLANNER_SYSTEM, with_industry_context
 
 
 class _PlanInput(BaseModel):
@@ -68,8 +68,12 @@ class PlannerAgent(BaseAgent[_PlanInput, TestSchedule]):
             f"- [{r.id}] {r.name} - service={r.service} role={r.role} avail={r.availability_pct}%"
             for r in inp.resources
         ]
+        industry = await self.ctx.project_industry()
         messages = [
-            ChatMessage(role="system", content=PLANNER_SYSTEM),
+            ChatMessage(
+                role="system",
+                content=with_industry_context(PLANNER_SYSTEM, industry),
+            ),
             ChatMessage(
                 role="user",
                 content=(

@@ -23,6 +23,7 @@ export interface Project {
   id: string;
   name: string;
   description?: string | null;
+  industry: ProjectIndustry;
   created_at: string;
   archived_at?: string | null;
   owner_id?: string | null;
@@ -31,6 +32,13 @@ export interface Project {
   budget_override_usd?: number | null;
   current_month_spend_usd: number;
 }
+
+export type ProjectIndustry =
+  | "generic"
+  | "aerospace"
+  | "automotive"
+  | "medical"
+  | "energy";
 
 export interface ProjectListResponse {
   items: Project[];
