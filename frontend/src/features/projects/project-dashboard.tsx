@@ -19,6 +19,7 @@ import { formatDate } from "@/lib/utils";
 import type { ProjectIndustry } from "@/lib/api/types";
 import {
   useArchiveProject,
+  useDeleteProject,
   useProject,
   useUpdateProject,
   useUpdateProjectBudget,
@@ -61,6 +62,7 @@ export function ProjectDashboard() {
   const update = useUpdateProject(projectId);
   const updateBudget = useUpdateProjectBudget(projectId);
   const archive = useArchiveProject();
+  const del = useDeleteProject();
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("Overview");
@@ -115,6 +117,28 @@ export function ProjectDashboard() {
     } catch (e) {
       toast.push({
         title: "Archive failed",
+        description: (e as Error).message,
+        tone: "error",
+      });
+    }
+  };
+
+  const onDelete = async () => {
+    const projectName = project.data?.name ?? "this project";
+    if (
+      !confirm(
+        `Permanently delete "${projectName}"? This removes the project and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await del.mutateAsync(projectId);
+      toast.push({ title: "Project deleted", tone: "success" });
+      navigate({ to: "/projects" });
+    } catch (e) {
+      toast.push({
+        title: "Delete failed",
         description: (e as Error).message,
         tone: "error",
       });
@@ -207,6 +231,14 @@ export function ProjectDashboard() {
                 disabled={archive.isPending}
               >
                 Archive
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={onDelete}
+                disabled={del.isPending}
+              >
+                Delete
               </Button>
             </div>
           </div>

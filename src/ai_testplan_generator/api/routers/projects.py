@@ -5,6 +5,7 @@ GET    /projects                           list projects
 GET    /projects/{id}                      get project
 PATCH  /projects/{id}                      update name/description
 DELETE /projects/{id}                      archive (soft delete)
+DELETE /projects/{id}/permanent            permanently delete
 POST   /projects/{id}/members              invite member
 DELETE /projects/{id}/members/{user_id}    remove member
 """
@@ -18,7 +19,13 @@ import structlog
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 
-from ai_testplan_generator.api.deps import get_current_user, get_project_repo, get_settings
+from ai_testplan_generator.api.deps import (
+    get_blob_store,
+    get_brain,
+    get_current_user,
+    get_project_repo,
+    get_settings,
+)
 from ai_testplan_generator.api.errors import NotFoundError, ValidationError
 from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.config import Settings
@@ -31,6 +38,8 @@ from ai_testplan_generator.domain.projects import (
     ProjectRole,
 )
 from ai_testplan_generator.domain.users import User
+from ai_testplan_generator.pipelines.brain import Brain
+from ai_testplan_generator.storage.base import BlobStore
 from ai_testplan_generator.telemetry.cost import get_project_spend_usd
 
 _log = structlog.get_logger(__name__)
@@ -84,7 +93,7 @@ class ProjectResponse(BaseModel):
     @classmethod
     def from_project(
         cls, p: Project, *, current_month_spend_usd: float = 0.0
-    ) -> "ProjectResponse":
+    ) -> ProjectResponse:
         return cls(
             id=p.id,
             name=p.name,
@@ -111,7 +120,7 @@ class MemberResponse(BaseModel):
     added_at: str
 
     @classmethod
-    def from_member(cls, m: ProjectMember) -> "MemberResponse":
+    def from_member(cls, m: ProjectMember) -> MemberResponse:
         return cls(
             project_id=m.project_id,
             user_id=m.user_id,
@@ -277,6 +286,41 @@ async def archive_project(
     ok = await repo.archive_project(project_id)
     if not ok:
         raise NotFoundError(f"Project '{project_id}' not found or already archived.")
+
+
+@router.delete(
+    "/{project_id}/permanent",
+    status_code=204,
+    summary="Permanently delete a project and its artefacts",
+    dependencies=[Depends(require("project.admin"))],
+)
+async def delete_project_permanently(
+    project_id: str,
+    repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+    brain: Annotated[Brain, Depends(get_brain)],
+    blob_store: Annotated[BlobStore, Depends(get_blob_store)],
+) -> None:
+    proj = await repo.get_project(project_id)
+    if proj is None:
+        raise NotFoundError(f"Project '{project_id}' not found.")
+
+    docs = await brain.memory.get_documents_for_project(project_id)
+    for doc in docs:
+        try:
+            await blob_store.delete(doc.source_uri)
+        except Exception:
+            _log.warning(
+                "project_blob_delete_failed",
+                project_id=project_id,
+                document_id=doc.id,
+                source_uri=doc.source_uri,
+            )
+    await brain.memory.delete_project_artefacts(project_id)
+
+    ok = await repo.delete_project(project_id)
+    if not ok:
+        raise NotFoundError(f"Project '{project_id}' not found.")
+    _log.info("project_deleted", project_id=project_id)
 
 
 @router.post(

@@ -5,7 +5,6 @@ Schema is created on first connection (no external migration runner needed).
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import StrEnum
@@ -96,7 +95,7 @@ class ProjectRepository:
         self._conn: aiosqlite.Connection | None = None
 
     @classmethod
-    async def create(cls, *, db_path: str) -> "ProjectRepository":
+    async def create(cls, *, db_path: str) -> ProjectRepository:
         repo = cls(db_path=db_path)
         await repo._init()
         return repo
@@ -292,6 +291,19 @@ class ProjectRepository:
         async with self._db().execute(
             "UPDATE projects SET archived_at=? WHERE id=? AND archived_at IS NULL",
             (ts, project_id),
+        ) as cur:
+            changed = cur.rowcount
+        await self._db().commit()
+        return changed > 0
+
+    async def delete_project(self, project_id: str) -> bool:
+        await self._db().execute(
+            "DELETE FROM project_members WHERE project_id=?",
+            (project_id,),
+        )
+        async with self._db().execute(
+            "DELETE FROM projects WHERE id=?",
+            (project_id,),
         ) as cur:
             changed = cur.rowcount
         await self._db().commit()

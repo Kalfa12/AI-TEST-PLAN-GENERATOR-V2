@@ -4,6 +4,7 @@ import {
   archiveProject,
   createResource,
   createProject,
+  deleteProject,
   deleteResource,
   getProject,
   listResources,
@@ -73,6 +74,17 @@ export function useArchiveProject() {
   return useMutation({
     mutationFn: archiveProject,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["projects"] }),
+  });
+}
+
+export function useDeleteProject() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: deleteProject,
+    onSuccess: (_data, projectId) => {
+      qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.removeQueries({ queryKey: ["project", projectId] });
+    },
   });
 }
 

@@ -51,6 +51,10 @@ export async function archiveProject(id: string): Promise<void> {
   await http.delete(`/projects/${id}`);
 }
 
+export async function deleteProject(id: string): Promise<void> {
+  await http.delete(`/projects/${id}/permanent`);
+}
+
 export type ProjectRole = "owner" | "editor" | "reviewer" | "viewer";
 
 export interface ProjectMember {

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
 from httpx import AsyncClient
 
 
@@ -117,6 +116,28 @@ class TestProjectCRUD:
 
     async def test_archive_project_not_found(self, client: AsyncClient) -> None:
         resp = await client.delete("/projects/proj_nonexistent")
+        assert resp.status_code == 404
+
+    async def test_delete_project_permanently(self, client: AsyncClient) -> None:
+        create_resp = await client.post(
+            "/projects", json={"name": "To Delete"}
+        )
+        project_id = create_resp.json()["id"]
+
+        del_resp = await client.delete(f"/projects/{project_id}/permanent")
+        assert del_resp.status_code == 204
+
+        get_resp = await client.get(f"/projects/{project_id}")
+        assert get_resp.status_code == 404
+
+        list_resp = await client.get("/projects", params={"include_archived": True})
+        assert list_resp.status_code == 200
+        assert all(item["id"] != project_id for item in list_resp.json()["items"])
+
+    async def test_delete_project_permanently_not_found(
+        self, client: AsyncClient
+    ) -> None:
+        resp = await client.delete("/projects/proj_nonexistent/permanent")
         assert resp.status_code == 404
 
 

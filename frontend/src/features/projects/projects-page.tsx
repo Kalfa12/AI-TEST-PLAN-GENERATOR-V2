@@ -8,7 +8,8 @@ import { Input } from "@/components/ui/input";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCreateProject, useProjects } from "./hooks";
+import { useToast } from "@/components/ui/toast";
+import { useCreateProject, useDeleteProject, useProjects } from "./hooks";
 import { formatDate } from "@/lib/utils";
 import type { ProjectIndustry } from "@/lib/api/types";
 
@@ -35,6 +36,8 @@ function industryLabel(industry: ProjectIndustry | undefined) {
 export function ProjectsPage() {
   const { data: projects, isLoading } = useProjects();
   const create = useCreateProject();
+  const del = useDeleteProject();
+  const toast = useToast();
   const [open, setOpen] = useState(false);
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -45,6 +48,26 @@ export function ProjectsPage() {
     await create.mutateAsync(values);
     setOpen(false);
     form.reset();
+  };
+
+  const onDeleteProject = async (projectId: string, name: string) => {
+    if (
+      !confirm(
+        `Permanently delete "${name}"? This removes the project from the workspace and cannot be undone.`,
+      )
+    ) {
+      return;
+    }
+    try {
+      await del.mutateAsync(projectId);
+      toast.push({ title: "Project deleted", tone: "success" });
+    } catch (error) {
+      toast.push({
+        title: "Delete failed",
+        description: (error as Error).message,
+        tone: "error",
+      });
+    }
   };
 
   return (
@@ -68,18 +91,36 @@ export function ProjectsPage() {
       ) : projects && projects.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {projects.map((p) => (
-            <Link key={p.id} to="/projects/$projectId" params={{ projectId: p.id }}>
-              <Card className="hover:shadow-md transition-shadow h-full">
-                <CardHeader>
-                  <CardTitle>{p.name}</CardTitle>
-                </CardHeader>
-                <CardBody className="text-sm text-muted-foreground space-y-1">
+            <Card key={p.id} className="h-full">
+              <CardHeader>
+                <CardTitle>{p.name}</CardTitle>
+              </CardHeader>
+              <CardBody className="space-y-4 text-sm text-muted-foreground">
+                <div className="space-y-1">
                   {p.description && <p>{p.description}</p>}
                   <p className="text-xs">Industry: {industryLabel(p.industry)}</p>
                   <p className="text-xs">Created {formatDate(p.created_at)}</p>
-                </CardBody>
-              </Card>
-            </Link>
+                </div>
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onDeleteProject(p.id, p.name)}
+                    disabled={del.isPending}
+                  >
+                    Delete
+                  </Button>
+                  <Link
+                    to="/projects/$projectId"
+                    params={{ projectId: p.id }}
+                    className="inline-flex h-8 items-center justify-center rounded-md bg-primary px-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+                  >
+                    Open
+                  </Link>
+                </div>
+              </CardBody>
+            </Card>
           ))}
         </div>
       ) : (
