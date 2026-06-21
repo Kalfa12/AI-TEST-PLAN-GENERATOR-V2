@@ -1,10 +1,40 @@
-import jsPDF from "jspdf";
+import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { TestPlan, TestPlanSummary, TestCaseSummary } from "@/lib/api/types";
+import type {
+  TestCaseSummary,
+  TestPlan,
+  TestPlanSummary,
+  TestStep,
+} from "@/lib/api/types";
 
 const MARGIN = 14;
 const PAGE_WIDTH = 210; // A4 portrait, mm
 const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
+
+function pdfText(value: string | number | null | undefined): string {
+  return String(value ?? "")
+    .replace(/[\u2010-\u2015]/g, "-")
+    .replace(/\u2022/g, "-")
+    .replace(/\u2192/g, "->")
+    .replace(/\u2264/g, "<=")
+    .replace(/\u2265/g, ">=")
+    .replace(/\u00b1/g, "+/-")
+    .replace(/\u00d7/g, "x")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function cellText(value: string | number | null | undefined): string {
+  return pdfText(value) || "-";
+}
+
+function truncatePdfText(value: string | null | undefined, maxChars: number): string {
+  const text = pdfText(value);
+  if (text.length <= maxChars) return text;
+  return `${text.slice(0, maxChars - 3).trim()}...`;
+}
 
 function riskLabel(level: number): string {
   if (level >= 4) return "Critical";
@@ -37,7 +67,7 @@ function heading(c: Cursor, text: string, size = 14): void {
   c.doc.setFont("helvetica", "bold");
   c.doc.setFontSize(size);
   c.doc.setTextColor(20, 20, 20);
-  c.doc.text(text, MARGIN, c.y);
+  c.doc.text(pdfText(text), MARGIN, c.y);
   c.y += size * 0.5 + 2;
   // underline
   c.doc.setDrawColor(180, 180, 180);
@@ -50,7 +80,7 @@ function paragraph(c: Cursor, text: string, opts?: { italic?: boolean; muted?: b
   c.doc.setFont("helvetica", opts?.italic ? "italic" : "normal");
   c.doc.setFontSize(10);
   c.doc.setTextColor(opts?.muted ? 100 : 30, opts?.muted ? 100 : 30, opts?.muted ? 100 : 30);
-  const lines = c.doc.splitTextToSize(text, CONTENT_WIDTH) as string[];
+  const lines = c.doc.splitTextToSize(pdfText(text), CONTENT_WIDTH) as string[];
   for (const line of lines) {
     ensureSpace(c, 5);
     c.doc.text(line, MARGIN, c.y);
@@ -65,11 +95,13 @@ function bulletList(c: Cursor, items: string[]): void {
   c.doc.setFontSize(10);
   c.doc.setTextColor(30, 30, 30);
   for (const item of items) {
-    const lines = c.doc.splitTextToSize(item, CONTENT_WIDTH - 6) as string[];
+    const lines = c.doc.splitTextToSize(pdfText(item), CONTENT_WIDTH - 7) as string[];
     for (let i = 0; i < lines.length; i++) {
       ensureSpace(c, 5);
-      const prefix = i === 0 ? "•  " : "    ";
-      c.doc.text(prefix + lines[i], MARGIN, c.y);
+      if (i === 0) {
+        c.doc.text("-", MARGIN, c.y);
+      }
+      c.doc.text(lines[i], MARGIN + 5, c.y);
       c.y += 5;
     }
   }
@@ -81,7 +113,7 @@ function subheading(c: Cursor, text: string): void {
   c.doc.setFont("helvetica", "bold");
   c.doc.setFontSize(11);
   c.doc.setTextColor(60, 60, 60);
-  c.doc.text(text.toUpperCase(), MARGIN, c.y);
+  c.doc.text(pdfText(text).toUpperCase(), MARGIN, c.y);
   c.y += 5;
 }
 
@@ -91,13 +123,14 @@ function field(c: Cursor, label: string, value: string): void {
   c.doc.setFont("helvetica", "bold");
   c.doc.setFontSize(9);
   c.doc.setTextColor(80, 80, 80);
-  c.doc.text(label, MARGIN, c.y);
+  c.doc.text(pdfText(label), MARGIN, c.y);
 
   c.doc.setFont("helvetica", "normal");
   c.doc.setTextColor(30, 30, 30);
-  const labelWidth = c.doc.getTextWidth(label);
-  const lines = c.doc.splitTextToSize(value, CONTENT_WIDTH - labelWidth - 2) as string[];
-  c.doc.text(lines[0], MARGIN + labelWidth + 2, c.y);
+  const labelWidth = c.doc.getTextWidth(pdfText(label));
+  const valueX = MARGIN + labelWidth + 4;
+  const lines = c.doc.splitTextToSize(pdfText(value), PAGE_WIDTH - MARGIN - valueX) as string[];
+  c.doc.text(lines[0], valueX, c.y);
   c.y += 5;
   for (let i = 1; i < lines.length; i++) {
     ensureSpace(c, 5);
@@ -127,7 +160,7 @@ function pageFooter(doc: jsPDF, plan: ExportablePlan): void {
     doc.setTextColor(140, 140, 140);
     const version = planVersionLabel(plan);
     doc.text(
-      `${plan.title}${version ? ` - ${version}` : ""}`,
+      pdfText(`${plan.title}${version ? ` - ${version}` : ""}`),
       MARGIN,
       pageHeight - 8,
     );
@@ -148,8 +181,9 @@ export function exportPlanToPdf(
   doc.setFont("helvetica", "bold");
   doc.setFontSize(20);
   doc.setTextColor(20, 20, 20);
-  doc.text(plan.title, MARGIN, c.y + 4);
-  c.y += 12;
+  const titleLines = doc.splitTextToSize(pdfText(plan.title), CONTENT_WIDTH) as string[];
+  doc.text(titleLines, MARGIN, c.y + 4);
+  c.y += Math.max(12, titleLines.length * 8);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(10);
@@ -162,7 +196,7 @@ export function exportPlanToPdf(
   ]
     .filter(Boolean)
     .join("    |    ");
-  doc.text(metaLine, MARGIN, c.y);
+  doc.text(pdfText(metaLine), MARGIN, c.y);
   c.y += 8;
   doc.setDrawColor(150, 150, 150);
   doc.line(MARGIN, c.y, PAGE_WIDTH - MARGIN, c.y);
@@ -228,8 +262,8 @@ export function exportPlanToPdf(
       margin: { left: MARGIN, right: MARGIN },
       head: [["Requirement", "Test cases"]],
       body: Object.entries(coverage).map(([rid, tcs]) => [
-        rid,
-        tcs.length === 0 ? "— uncovered —" : tcs.join(", "),
+        cellText(rid),
+        tcs.length === 0 ? "- uncovered -" : cellText(tcs.join(", ")),
       ]),
       styles: { fontSize: 9, cellPadding: 2 },
       headStyles: { fillColor: [240, 240, 240], textColor: 30, fontStyle: "bold" },
@@ -248,16 +282,16 @@ export function exportPlanToPdf(
   // ---- Test case overview table
   doc.addPage();
   c.y = MARGIN;
-  heading(c, "8. Test cases — overview");
+  heading(c, "8. Test cases - overview");
 
   const overviewBody = plan.test_cases.map((tc, i) => [
     `TC-${String(i + 1).padStart(3, "0")}`,
-    tc.title,
+    cellText(tc.title),
     riskLabel(tc.risk_level),
-    tc.requirement_ids.join(", ") || "—",
-    (tc.testing_types ?? []).join(", ") || "—",
-    tc.estimated_duration_minutes ? `${tc.estimated_duration_minutes} min` : "—",
-    tc.assignee ?? "—",
+    cellText(tc.requirement_ids.join(", ")),
+    cellText((tc.testing_types ?? []).join(", ")),
+    tc.estimated_duration_minutes ? `${tc.estimated_duration_minutes} min` : "-",
+    cellText(tc.assignee),
   ]);
 
   autoTable(doc, {
@@ -292,7 +326,7 @@ export function exportPlanToPdf(
   // ---- Per-test-case detail
   doc.addPage();
   c.y = MARGIN;
-  heading(c, "9. Test cases — detail");
+  heading(c, "9. Test cases - detail");
 
   plan.test_cases.forEach((tc, i) => {
     renderTestCaseDetail(c, tc, i + 1);
@@ -303,20 +337,26 @@ export function exportPlanToPdf(
 }
 
 function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void {
-  ensureSpace(c, 18);
+  const [r, g, b] = riskColor(tc.risk_level);
+  const pillW = 22;
+  const titleWidth = CONTENT_WIDTH - pillW - 28;
+  const titleLines = c.doc.splitTextToSize(
+    pdfText(`TC-${String(idx).padStart(3, "0")}  ${tc.title}`),
+    titleWidth,
+  ) as string[];
+  const titleBarHeight = Math.max(8, titleLines.length * 4.5 + 4);
+  ensureSpace(c, titleBarHeight + 10);
 
   // Title bar
   c.doc.setFillColor(245, 247, 250);
-  c.doc.rect(MARGIN, c.y, CONTENT_WIDTH, 8, "F");
+  c.doc.rect(MARGIN, c.y, CONTENT_WIDTH, titleBarHeight, "F");
   c.doc.setFont("helvetica", "bold");
   c.doc.setFontSize(11);
   c.doc.setTextColor(20, 20, 20);
-  c.doc.text(`TC-${String(idx).padStart(3, "0")}  ${tc.title}`, MARGIN + 2, c.y + 5.5);
+  c.doc.text(titleLines, MARGIN + 2, c.y + 5.5);
 
   // Risk pill on right
-  const [r, g, b] = riskColor(tc.risk_level);
   c.doc.setFillColor(r, g, b);
-  const pillW = 22;
   c.doc.roundedRect(PAGE_WIDTH - MARGIN - pillW - 1, c.y + 1.5, pillW, 5, 1.5, 1.5, "F");
   c.doc.setFont("helvetica", "bold");
   c.doc.setFontSize(8);
@@ -324,12 +364,12 @@ function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void
   c.doc.text(riskLabel(tc.risk_level), PAGE_WIDTH - MARGIN - pillW / 2 - 1, c.y + 5, {
     align: "center",
   });
-  c.y += 11;
+  c.y += titleBarHeight + 3;
 
   // Objective
   field(c, "Objective: ", tc.objective);
   if (tc.risk_description) field(c, "Risk: ", tc.risk_description);
-  field(c, "Requirements: ", tc.requirement_ids.join(", ") || "—");
+  field(c, "Requirements: ", tc.requirement_ids.join(", ") || "-");
   if (tc.source_evidence && tc.source_evidence.length > 0) {
     subheading(c, "Source evidence");
     bulletList(
@@ -338,7 +378,7 @@ function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void
         const page = ev.page_start
           ? ` p.${ev.page_start}${ev.page_end && ev.page_end !== ev.page_start ? `-${ev.page_end}` : ""}`
           : "";
-        return `${ev.relation}: ${ev.document_id} / ${ev.chunk_id}${page} - ${ev.excerpt}`;
+        return `${ev.relation}: ${ev.document_id} / ${ev.chunk_id}${page} - ${truncatePdfText(ev.excerpt, 520)}`;
       }),
     );
   }
@@ -352,10 +392,7 @@ function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void
 
   if (tc.steps && tc.steps.length > 0) {
     subheading(c, "Steps");
-    const lines = tc.steps.map(
-      (s, i) => `${i + 1}. ${s.action} → ${s.expected_result}${s.notes ? ` (${s.notes})` : ""}`,
-    );
-    bulletList(c, lines);
+    renderStepsTable(c, tc.steps);
   }
 
   if (tc.acceptance_criteria && tc.acceptance_criteria.length > 0) {
@@ -389,4 +426,54 @@ function renderTestCaseDetail(c: Cursor, tc: TestCaseSummary, idx: number): void
   }
 
   c.y += 4;
+}
+
+function renderStepsTable(c: Cursor, steps: TestStep[]): void {
+  const hasNotes = steps.some((step) => Boolean(step.notes));
+  autoTable(c.doc, {
+    startY: c.y,
+    margin: { left: MARGIN, right: MARGIN },
+    head: [
+      hasNotes
+        ? ["#", "Action", "Expected result", "Notes"]
+        : ["#", "Action", "Expected result"],
+    ],
+    body: steps.map((step, index) => {
+      const base = [
+        String(step.index || index + 1),
+        cellText(step.action),
+        cellText(step.expected_result),
+      ];
+      return hasNotes ? [...base, cellText(step.notes)] : base;
+    }),
+    styles: {
+      font: "helvetica",
+      fontSize: 8.5,
+      cellPadding: 2,
+      overflow: "linebreak",
+      valign: "top",
+      textColor: [30, 30, 30],
+      lineColor: [220, 225, 232],
+      lineWidth: 0.1,
+    },
+    headStyles: {
+      fillColor: [245, 247, 250],
+      textColor: [60, 60, 60],
+      fontStyle: "bold",
+    },
+    alternateRowStyles: { fillColor: [252, 253, 255] },
+    columnStyles: hasNotes
+      ? {
+          0: { cellWidth: 9, halign: "center", fontStyle: "bold" },
+          1: { cellWidth: 74 },
+          2: { cellWidth: 74 },
+          3: { cellWidth: 25 },
+        }
+      : {
+          0: { cellWidth: 10, halign: "center", fontStyle: "bold" },
+          1: { cellWidth: 84 },
+          2: { cellWidth: 88 },
+        },
+  });
+  c.y = (c.doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 4;
 }
