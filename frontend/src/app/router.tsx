@@ -6,7 +6,9 @@ import {
   Outlet,
 } from "@tanstack/react-router";
 import { AppLayout } from "./layout";
+import { HomePage } from "@/features/home/home-page";
 import { LoginForm } from "@/features/auth/login-form";
+import { SignUpForm } from "@/features/auth/sign-up-form";
 import { ProjectsPage } from "@/features/projects/projects-page";
 import { ProjectDashboard } from "@/features/projects/project-dashboard";
 import { PlanDetailPage } from "@/features/plans/plan-detail";
@@ -15,7 +17,8 @@ import { ChatPage } from "@/features/chat/chat-page";
 import { TraceabilityGraphPage } from "@/features/traceability/graph-view";
 import { AdminPage } from "@/features/admin/admin-page";
 import { KnowledgePage } from "@/features/knowledge/knowledge-page";
-import { ApiKeysPage } from "@/features/auth/api-keys-page";
+import { SettingsPage } from "@/features/auth/api-keys-page";
+import { readTokens } from "@/lib/auth/storage";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -24,13 +27,19 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: () => <Navigate to="/projects" />,
+  component: () => (readTokens() ? <Navigate to="/projects" /> : <HomePage />),
 });
 
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/login",
   component: LoginForm,
+});
+
+const signUpRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/signup",
+  component: SignUpForm,
 });
 
 const appRoute = createRoute({
@@ -87,15 +96,22 @@ const knowledgeRoute = createRoute({
   component: KnowledgePage,
 });
 
+const settingsRoute = createRoute({
+  getParentRoute: () => appRoute,
+  path: "/settings",
+  component: SettingsPage,
+});
+
 const apiKeysRoute = createRoute({
   getParentRoute: () => appRoute,
   path: "/api-keys",
-  component: ApiKeysPage,
+  component: () => <Navigate to="/settings" />,
 });
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
   loginRoute,
+  signUpRoute,
   appRoute.addChildren([
     projectsRoute,
     projectDetailRoute,
@@ -104,6 +120,7 @@ const routeTree = rootRoute.addChildren([
     chatRoute,
     traceabilityRoute,
     knowledgeRoute,
+    settingsRoute,
     apiKeysRoute,
     adminRoute,
   ]),

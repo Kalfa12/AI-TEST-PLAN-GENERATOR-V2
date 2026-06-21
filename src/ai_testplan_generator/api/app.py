@@ -93,7 +93,10 @@ def _make_lifespan(settings: Settings | None) -> Any:  # returns contextmanager
         # Build user repository (same SQLite file, separate connection).
         from ai_testplan_generator.domain.users import UserRepository
 
-        user_repo = await UserRepository.create(db_path=cfg.app_db_path)
+        user_repo = await UserRepository.create(
+            db_path=cfg.app_db_path,
+            encryption_secret=cfg.blob_encryption_key or cfg.jwt_secret,
+        )
 
         # Event broker — InMemoryEventBroker or RedisPubSubBroker depending on settings (M18).
         from ai_testplan_generator.events.broker import build_event_broker

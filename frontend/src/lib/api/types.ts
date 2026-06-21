@@ -13,6 +13,23 @@ export interface User {
   is_admin?: boolean;
 }
 
+export type ProviderName = "groq" | "gemini" | "mistral" | "deepseek";
+
+export interface ProviderKey {
+  id: string;
+  provider: ProviderName;
+  label: string;
+  key_tail: string;
+  is_enabled: boolean;
+  created_at: string;
+  last_used_at: string | null;
+  revoked_at: string | null;
+}
+
+export interface ProviderKeyCreated extends ProviderKey {
+  api_key: string;
+}
+
 export interface TokenPair {
   access_token: string;
   refresh_token: string;

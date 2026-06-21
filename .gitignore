@@ -32,6 +32,7 @@ data/
 .ruff_cache/
 
 # Internal docs — kept locally, not for the public repo
+CLAUDE.md
 DEVELOPMENT_PLAN.md
 INTEGRATION.md
 MODIFICATIONS_LOG.md

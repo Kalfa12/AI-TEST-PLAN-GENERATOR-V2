@@ -1,7 +1,7 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, Outlet, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useCurrentUser } from "@/features/auth/hooks";
 import { clearTokens } from "@/lib/auth/storage";
-import { Button } from "@/components/ui/button";
 import { ToastViewport } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,6 @@ const NAV: NavItem[] = [
   { to: "/projects", label: "Projects" },
   { to: "/knowledge", label: "Knowledge base" },
   { to: "/traceability", label: "Traceability" },
-  { to: "/api-keys", label: "API keys" },
   { to: "/admin", label: "Admin", adminOnly: true },
 ];
 
@@ -23,6 +22,27 @@ export function AppLayout() {
   const navigate = useNavigate();
   const { data: user, isLoading } = useCurrentUser();
   const router = useRouterState();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const initials = useMemo(() => {
+    const source = user?.display_name?.trim() || user?.email?.trim() || "U";
+    const parts = source.split(/\s+/).filter(Boolean);
+    const chars = (parts.length > 1 ? `${parts[0][0]}${parts[1][0]}` : source.slice(0, 2)).toUpperCase();
+    return chars;
+  }, [user?.display_name, user?.email]);
+
+  useEffect(() => {
+    const onClickOutside = (event: MouseEvent) => {
+      if (!profileMenuRef.current) return;
+      if (!profileMenuRef.current.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, []);
 
   if (isLoading) {
     return (
@@ -41,17 +61,19 @@ export function AppLayout() {
 
   const onLogout = () => {
     clearTokens();
-    window.location.assign("/login");
+    window.location.assign("/");
   };
 
   return (
     <div className="flex min-h-screen">
-      <aside className="w-56 border-r border-border bg-muted/30 flex flex-col">
+      <aside className="flex w-56 flex-col border-r border-border bg-muted/30">
         <div className="p-4 border-b border-border">
-          <div className="font-semibold">Test Plan Generator</div>
-          <div className="text-xs text-muted-foreground mt-1">{user.email}</div>
+          <div className="flex items-center gap-2">
+            <img src="/sigmaxis-logo.png" alt="Sigmaxis" className="h-8 w-8 object-contain" />
+            <div className="font-semibold leading-tight">Test Plan Generator</div>
+          </div>
         </div>
-        <nav className="flex-1 p-2 space-y-1">
+        <nav className="flex-1 space-y-1 p-2">
           {NAV.filter((n) => !n.adminOnly || user.is_admin).map((n) => {
             const active = router.location.pathname.startsWith(n.to);
             return (
@@ -70,10 +92,45 @@ export function AppLayout() {
             );
           })}
         </nav>
-        <div className="p-2 border-t border-border">
-          <Button variant="ghost" size="sm" className="w-full" onClick={onLogout}>
-            Sign out
-          </Button>
+        <div className="border-t border-border p-2">
+          <div ref={profileMenuRef} className="relative">
+            <button
+              type="button"
+              onClick={() => setProfileMenuOpen((value) => !value)}
+              className={cn(
+                "flex w-full items-center gap-3 rounded-md border border-border bg-background/80 px-3 py-2 text-left transition-colors hover:bg-accent",
+                profileMenuOpen && "bg-accent",
+              )}
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                {initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-medium">{user.display_name}</div>
+                <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+              </div>
+              <span className="text-xs text-muted-foreground">▾</span>
+            </button>
+
+            {profileMenuOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 rounded-lg border border-border bg-background p-1 shadow-lg">
+                <Link
+                  to="/settings"
+                  className="block rounded-md px-3 py-2 text-sm hover:bg-accent"
+                  onClick={() => setProfileMenuOpen(false)}
+                >
+                  Settings
+                </Link>
+                <button
+                  type="button"
+                  className="block w-full rounded-md px-3 py-2 text-left text-sm hover:bg-accent"
+                  onClick={onLogout}
+                >
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
       <main className="flex-1 overflow-auto">
