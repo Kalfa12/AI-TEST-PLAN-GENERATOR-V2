@@ -19,6 +19,8 @@ from ai_testplan_generator.domain.auth import ApiKey
 
 _log = structlog.get_logger(__name__)
 
+_SQLITE_BUSY_TIMEOUT_MS = 30_000
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     id              TEXT PRIMARY KEY,
@@ -86,9 +88,10 @@ class UserRepository:
         path_str = self._db_path
         if path_str != ":memory:":
             Path(path_str).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = await aiosqlite.connect(path_str)
+        self._conn = await aiosqlite.connect(path_str, timeout=30.0)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
+        await self._conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
         await self._conn.executescript(_SCHEMA)
         await self._ensure_schema()
         await self._conn.commit()

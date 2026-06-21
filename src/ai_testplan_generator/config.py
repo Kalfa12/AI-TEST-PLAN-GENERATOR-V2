@@ -13,7 +13,6 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 DEFAULT_JWT_SECRET = "changeme-local-dev-only"
 
 
@@ -39,6 +38,21 @@ class Settings(BaseSettings):
     default_temperature: float = Field(default=0.1, alias="LLM_DEFAULT_TEMPERATURE")
     max_retries: int = Field(default=4, alias="LLM_MAX_RETRIES")
     request_timeout_s: int = Field(default=120, alias="LLM_REQUEST_TIMEOUT_S")
+    embedding_rate_limit_per_minute: int = Field(
+        default=0,
+        alias="LLM_EMBEDDING_RATE_LIMIT_PER_MINUTE",
+        description="Optional provider quota guard for embedding input items.",
+    )
+    nvidia_api_key: str | None = Field(default=None, alias="NVIDIA_API_KEY")
+    nvidia_base_url: str = Field(
+        default="https://integrate.api.nvidia.com/v1",
+        alias="NVIDIA_BASE_URL",
+    )
+    nvidia_embedding_batch_size: int = Field(default=50, alias="NVIDIA_EMBEDDING_BATCH_SIZE")
+    nvidia_embedding_truncate: Literal["START", "END", "NONE"] = Field(
+        default="NONE",
+        alias="NVIDIA_EMBEDDING_TRUNCATE",
+    )
 
     # Ingestion
     chunk_target_tokens: int = Field(default=900, alias="CHUNK_TARGET_TOKENS")

@@ -197,7 +197,7 @@ class MemoryManager:
 
         # Batch embeddings: the gateway handles provider-specific batching.
         texts = [ch.text for ch in chunks]
-        vectors = await self._llm.embed(texts)
+        vectors = await self._llm.embed(texts, input_type="passage")
         doc = self._store.documents.get(chunks[0].document_id)
         scope = doc.scope if doc else "project"
         project_id = doc.project_id if doc else None
@@ -235,7 +235,10 @@ class MemoryManager:
         # by intent.
         project_id = requirements[0].project_id
         namespace = f"requirements:{project_id or 'global'}"
-        vectors = await self._llm.embed([r.statement for r in requirements])
+        vectors = await self._llm.embed(
+            [r.statement for r in requirements],
+            input_type="passage",
+        )
         payloads = [
             {
                 "requirement_id": r.id,
@@ -318,7 +321,7 @@ class MemoryManager:
         include_graph: bool = True,
     ) -> RetrievalBundle:
         """Hybrid retrieval: semantic hits + graph neighbours."""
-        [qvec] = await self._llm.embed([query])
+        [qvec] = await self._llm.embed([query], input_type="query")
         semantic_hits: list[SearchHit] = []
 
         # Chunks: search each requested scope, then merge.

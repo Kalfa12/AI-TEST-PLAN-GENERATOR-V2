@@ -189,7 +189,13 @@ class AcceptanceLLM:
     ) -> AsyncIterator[str]:
         yield "OK"
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str | None = None,
+        input_type: str = "passage",
+    ) -> list[list[float]]:
         vectors = []
         for text in texts:
             digest = hashlib.sha256(text.encode()).digest()

@@ -15,6 +15,9 @@ from pydantic import BaseModel, Field
 ModelRole = Literal["smart", "balanced", "fast"]
 """Semantic tier - the gateway maps this to an actual model id."""
 
+EmbeddingInputType = Literal["passage", "query"]
+"""Provider hint for asymmetric retrieval embedding models."""
+
 Role = Literal["system", "user", "assistant", "tool"]
 
 
@@ -87,5 +90,11 @@ class LLMGateway(Protocol):
         max_tokens: int | None = None,
     ) -> AsyncIterator[str]: ...
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str | None = None,
+        input_type: EmbeddingInputType = "passage",
+    ) -> list[list[float]]:
         ...

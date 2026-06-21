@@ -23,6 +23,8 @@ from starlette.types import ASGIApp
 
 _log = structlog.get_logger(__name__)
 
+_SQLITE_BUSY_TIMEOUT_MS = 30_000
+
 _AUDIT_SCHEMA = """
 CREATE TABLE IF NOT EXISTS audit_events (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -53,8 +55,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
     async def _ensure_conn(self) -> aiosqlite.Connection:
         conn = self._conn
         if conn is None:
-            conn = await aiosqlite.connect(self._db_path)
+            conn = await aiosqlite.connect(self._db_path, timeout=30.0)
             await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
             await conn.executescript(_AUDIT_SCHEMA)
             await conn.commit()
             self._conn = conn

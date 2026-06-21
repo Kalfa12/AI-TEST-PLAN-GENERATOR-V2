@@ -19,6 +19,8 @@ import structlog
 
 _log = structlog.get_logger(__name__)
 
+_SQLITE_BUSY_TIMEOUT_MS = 30_000
+
 # ---------------------------------------------------------------------------
 # Pricing table  (model_id -> {input: $/1k, output: $/1k})
 # ---------------------------------------------------------------------------
@@ -102,8 +104,10 @@ async def record_usage(
     try:
         path = Path(db_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        async with aiosqlite.connect(db_path) as conn:
+        async with aiosqlite.connect(db_path, timeout=30.0) as conn:
             await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
             await _ensure_schema(conn, db_path)
             await conn.execute(
                 """INSERT INTO llm_usage
@@ -143,7 +147,8 @@ async def get_cost_summary(
     if not path.exists():
         return []
 
-    async with aiosqlite.connect(db_path) as conn:
+    async with aiosqlite.connect(db_path, timeout=30.0) as conn:
+        await conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
         await _ensure_schema(conn, db_path)
         conn.row_factory = aiosqlite.Row
         sql = f"""

@@ -101,8 +101,14 @@ class MockLLMGateway:
         yield "streamed "
         yield "response."
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
-        self.call_log.append({"method": "embed", "n_texts": len(texts)})
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str | None = None,
+        input_type: str = "passage",
+    ) -> list[list[float]]:
+        self.call_log.append({"method": "embed", "n_texts": len(texts), "input_type": input_type})
         import hashlib
         vectors = []
         for text in texts:

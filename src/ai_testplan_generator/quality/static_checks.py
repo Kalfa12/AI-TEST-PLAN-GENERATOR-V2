@@ -53,7 +53,13 @@ def _mk(
 # ---------------------------------------------------------------------------
 
 _TBD_RE = re.compile(r"\b(TBD|TBR|TBS|TBC|TBA)\b")
-_NON_SHALL_MODALS = re.compile(r"\b(should|may|will|must)\b", re.IGNORECASE)
+# Non-binding modals only. A `should` or `may` ANYWHERE in the statement is
+# drift, even when a `shall` also appears — that case is a compound requirement
+# mixing optionality with obligation, which is the worst kind of ambiguity.
+# `will` and `must` are deliberately omitted: they're often used in industrial
+# style as synonyms for shall (or for non-normative descriptions), and flagging
+# them produced too many false positives.
+_NON_BINDING_MODALS = re.compile(r"\b(should|may)\b", re.IGNORECASE)
 _SHALL_RE = re.compile(r"\bshall\b", re.IGNORECASE)
 _UNIVERSAL_RE = re.compile(
     r"\b(always|never|all|every|every\s+single|100\s*%)\b", re.IGNORECASE
@@ -118,18 +124,26 @@ def _check_tbd(req: Requirement) -> list[DefectInstance]:
 
 
 def _check_modality(req: Requirement) -> list[DefectInstance]:
-    if _SHALL_RE.search(req.statement):
-        return []
-    m = _NON_SHALL_MODALS.search(req.statement)
+    # Catch `should` / `may` anywhere in the statement — even when a `shall`
+    # also appears. Mixed-modality compound requirements (e.g. "X should A and
+    # shall B") used to slip past because the presence of `shall` short-
+    # circuited the check; that's the bug the eval harness surfaced.
+    m = _NON_BINDING_MODALS.search(req.statement)
     if not m:
         return []
+    has_shall = bool(_SHALL_RE.search(req.statement))
+    evidence = (
+        f"Mixes non-binding modal '{m.group(0)}' with binding 'shall' — split into separate requirements."
+        if has_shall
+        else f"Uses non-binding modal '{m.group(0)}' as the primary verb; no 'shall' present."
+    )
     return [
         _mk(
             DefectType.MODALITY_DRIFT,
             "requirement",
             req.id,
-            f"Uses '{m.group(0)}' as primary modal verb; no 'shall' present.",
-            "Use 'shall' for binding obligations; reserve 'should/may' for recommendations.",
+            evidence,
+            "Use 'shall' for binding obligations; reserve 'should/may' for recommendations and keep them in a separate requirement.",
         )
     ]
 

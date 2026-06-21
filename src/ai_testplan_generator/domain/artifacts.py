@@ -31,6 +31,7 @@ from ai_testplan_generator.models import (
 _log = structlog.get_logger(__name__)
 
 _MIGRATION_ID = "artifact_store_v1"
+_SQLITE_BUSY_TIMEOUT_MS = 30_000
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -174,9 +175,10 @@ class ArtifactRepository:
     async def _init(self) -> None:
         if self._db_path != ":memory:":
             Path(self._db_path).parent.mkdir(parents=True, exist_ok=True)
-        self._conn = await aiosqlite.connect(self._db_path)
+        self._conn = await aiosqlite.connect(self._db_path, timeout=30.0)
         await self._conn.execute("PRAGMA journal_mode=WAL")
         await self._conn.execute("PRAGMA synchronous=NORMAL")
+        await self._conn.execute(f"PRAGMA busy_timeout={_SQLITE_BUSY_TIMEOUT_MS}")
         await self._conn.executescript(_SCHEMA)
         await self._record_migration(_MIGRATION_ID)
         await self._conn.commit()

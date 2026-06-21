@@ -10,9 +10,13 @@ inference server, swap in a new class implementing `LLMGateway`.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import math
+import time
 from collections.abc import AsyncIterator, Sequence
 from functools import lru_cache
+from hashlib import sha256
 from typing import Any, TypeVar, cast
 
 from pydantic import BaseModel
@@ -26,6 +30,7 @@ from tenacity import (
 from ai_testplan_generator.config import Settings, get_settings
 from ai_testplan_generator.llm.base import (
     ChatMessage,
+    EmbeddingInputType,
     LLMGateway,
     LLMResponse,
     ModelRole,
@@ -33,6 +38,7 @@ from ai_testplan_generator.llm.base import (
 )
 
 T = TypeVar("T", bound=BaseModel)
+_MAX_EMBEDDING_BATCH_SIZE = 100
 
 
 class LiteLLMGateway(LLMGateway):
@@ -54,6 +60,8 @@ class LiteLLMGateway(LLMGateway):
         litellm.drop_params = True  # quietly drop params unsupported by the target provider
         litellm.telemetry = False
         self._litellm = litellm
+        self._embedding_window_started_at = 0.0
+        self._embedding_window_count = 0
 
     # -- model tier resolution -------------------------------------------------
 
@@ -302,12 +310,121 @@ class LiteLLMGateway(LLMGateway):
 
     # -- embeddings ------------------------------------------------------------
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str | None = None,
+        input_type: EmbeddingInputType = "passage",
+    ) -> list[list[float]]:
         resolved_model = model or self._settings.models.embedding
-        async for attempt in self._retryer():
-            with attempt:
-                raw = await self._litellm.aembedding(model=resolved_model, input=list(texts))
-        return [d["embedding"] for d in raw["data"]]
+        if resolved_model in {"local/hash", "local/deterministic", "mock-model"}:
+            return self._local_hash_embeddings(texts)
+        vectors: list[list[float]] = []
+        for batch in self._embedding_batches(texts, model=resolved_model):
+            await self._throttle_embedding_batch(len(batch))
+            async for attempt in self._retryer():
+                with attempt:
+                    if self._is_nvidia_embedding_model(resolved_model):
+                        vectors.extend(
+                            await self._nvidia_embeddings(
+                                batch,
+                                model=resolved_model,
+                                input_type=input_type,
+                            )
+                        )
+                    else:
+                        raw = await self._litellm.aembedding(
+                            model=resolved_model,
+                            input=batch,
+                        )
+                        vectors.extend(d["embedding"] for d in raw["data"])
+        return vectors
+
+    def _embedding_batches(self, texts: Sequence[str], *, model: str) -> list[list[str]]:
+        items = list(texts)
+        batch_size = _MAX_EMBEDDING_BATCH_SIZE
+        if self._is_nvidia_embedding_model(model):
+            batch_size = min(batch_size, max(1, self._settings.nvidia_embedding_batch_size))
+        if self._settings.embedding_rate_limit_per_minute > 0:
+            batch_size = min(batch_size, self._settings.embedding_rate_limit_per_minute)
+        return [
+            items[i : i + batch_size]
+            for i in range(0, len(items), batch_size)
+        ]
+
+    @staticmethod
+    def _is_nvidia_embedding_model(model: str) -> bool:
+        return model.startswith("nvidia/")
+
+    async def _nvidia_embeddings(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str,
+        input_type: EmbeddingInputType,
+    ) -> list[list[float]]:
+        if not self._settings.nvidia_api_key:
+            raise ValueError("NVIDIA_API_KEY must be set when using NVIDIA embeddings.")
+
+        from openai import AsyncOpenAI  # noqa: PLC0415
+
+        client = AsyncOpenAI(
+            api_key=self._settings.nvidia_api_key,
+            base_url=self._settings.nvidia_base_url,
+        )
+        response = await client.embeddings.create(
+            input=list(texts),
+            model=model,
+            encoding_format="float",
+            extra_body={
+                "input_type": input_type,
+                "truncate": self._settings.nvidia_embedding_truncate,
+            },
+            timeout=self._settings.request_timeout_s,
+        )
+        return [list(item.embedding) for item in response.data]
+
+    async def _throttle_embedding_batch(self, batch_size: int) -> None:
+        limit = self._settings.embedding_rate_limit_per_minute
+        if limit <= 0:
+            return
+
+        now = time.monotonic()
+        elapsed = now - self._embedding_window_started_at
+        if self._embedding_window_started_at == 0.0 or elapsed >= 60:
+            self._embedding_window_started_at = now
+            self._embedding_window_count = 0
+            elapsed = 0.0
+
+        if self._embedding_window_count + batch_size > limit:
+            await asyncio.sleep(max(60.0 - elapsed, 0.0) + 0.25)
+            self._embedding_window_started_at = time.monotonic()
+            self._embedding_window_count = 0
+
+        self._embedding_window_count += batch_size
+
+    def _local_hash_embeddings(self, texts: Sequence[str]) -> list[list[float]]:
+        """Deterministic local embeddings for tests and offline demos.
+
+        These vectors are not semantic embeddings. They exist so ingestion,
+        storage, and traceability flows can be exercised without a live
+        embedding provider.
+        """
+        dim = self._settings.qdrant_embedding_dim
+        vectors: list[list[float]] = []
+        for text in texts:
+            values: list[float] = []
+            seed = text.encode("utf-8", errors="ignore") or b" "
+            counter = 0
+            while len(values) < dim:
+                digest = sha256(seed + counter.to_bytes(4, "big")).digest()
+                values.extend((byte / 127.5) - 1.0 for byte in digest)
+                counter += 1
+            vec = values[:dim]
+            norm = math.sqrt(sum(v * v for v in vec)) or 1.0
+            vectors.append([v / norm for v in vec])
+        return vectors
 
     # -- normalisation ---------------------------------------------------------
 

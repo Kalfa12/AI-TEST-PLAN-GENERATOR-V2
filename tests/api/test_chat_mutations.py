@@ -98,7 +98,13 @@ class MutatingCopilotLLM:
     ) -> AsyncIterator[str]:
         yield "OK"
 
-    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
+    async def embed(
+        self,
+        texts: Sequence[str],
+        *,
+        model: str | None = None,
+        input_type: str = "passage",
+    ) -> list[list[float]]:
         return [[0.1] * 8 for _ in texts]
 
 

@@ -48,3 +48,51 @@ async def test_job_repository_persists_checkpoint_across_reopen(tmp_path) -> Non
     assert checkpoint.state["requirements"][0]["project_id"] == "project-a"
 
     await reopened.close()
+
+
+async def test_job_repository_clears_resume_directive_on_new_checkpoint(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    db_path = str(tmp_path / "jobs.db")
+    repo = await JobRepository.create(db_path=db_path)
+    job = Job(
+        id="job_checkpoint_directive",
+        kind="run_autonomous_interactive",
+        session_id="sess_checkpoint_directive",
+    )
+    state = AutonomousState(
+        session_id="sess_checkpoint_directive",
+        project_id="project-a",
+        goal="Generate a restart-safe test plan",
+        detail_level=DetailLevel.DETAILED,
+        requirements=[make_requirement(project_id="project-a")],
+        interactive=True,
+    )
+
+    job.pause(agent="extractor", state=state)
+    await repo.save_checkpoint(
+        job=job,
+        paused_at="extractor",
+        state=state.model_dump(mode="json"),
+        project_id="project-a",
+    )
+    await repo.save_resume_directive(
+        job.id,
+        {"action": "accept", "feedback": None},
+    )
+    accepted = await repo.get_checkpoint(job.id)
+    assert accepted is not None
+    assert accepted.directive == {"action": "accept", "feedback": None}
+
+    job.pause(agent="architect", state=state)
+    await repo.save_checkpoint(
+        job=job,
+        paused_at="architect",
+        state=state.model_dump(mode="json"),
+        project_id="project-a",
+    )
+
+    next_checkpoint = await repo.get_checkpoint(job.id)
+    assert next_checkpoint is not None
+    assert next_checkpoint.paused_at == "architect"
+    assert next_checkpoint.directive is None
+
+    await repo.close()

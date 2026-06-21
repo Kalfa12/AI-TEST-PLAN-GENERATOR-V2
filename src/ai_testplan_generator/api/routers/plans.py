@@ -412,17 +412,25 @@ async def resume_job(
             f"Job '{job_id}' is not currently paused at a checkpoint."
         )
 
-    await job_repo.save_resume_directive(
-        job_id,
-        {"action": body.action, "feedback": body.feedback},
-    )
+    directive = {"action": body.action, "feedback": body.feedback}
     ok = submit_directive(
         job,
         ResumeDirective(action=body.action, feedback=body.feedback),
     )
-    if not ok and checkpoint is None:
-        raise ValidationError(
-            f"Job '{job_id}' is not currently paused at a checkpoint."
-        )
+    if ok:
+        try:
+            await job_repo.save_resume_directive(job_id, directive)
+        except Exception as exc:  # noqa: BLE001
+            _log.warning(
+                "resume_directive_persist_failed",
+                job_id=job_id,
+                error=str(exc),
+            )
+    else:
+        if checkpoint is None:
+            raise ValidationError(
+                f"Job '{job_id}' is not currently paused at a checkpoint."
+            )
+        await job_repo.save_resume_directive(job_id, directive)
 
     return JobStatusResponse.from_job(job)
