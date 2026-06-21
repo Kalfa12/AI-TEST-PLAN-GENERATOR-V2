@@ -39,8 +39,10 @@ describe("ProjectCoverageCard", () => {
     renderWithQueryClient(<ProjectCoverageCard projectId="project-a" />);
 
     expect(await screen.findByText("67%")).toBeInTheDocument();
-    expect(screen.getByText("2")).toBeInTheDocument();
-    expect(screen.getByText(/\/ 3 requirements covered/i)).toBeInTheDocument();
+    expect(screen.getByText("Extracted")).toBeInTheDocument();
+    expect(screen.getByText("Covered")).toBeInTheDocument();
+    expect(screen.getByText("Uncovered")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
     expect(screen.getByText("Uncovered (1)")).toBeInTheDocument();
     expect(screen.getByText("REQ-2")).toBeInTheDocument();
   });

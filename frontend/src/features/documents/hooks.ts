@@ -21,7 +21,12 @@ export function useUploadDocument(projectId: string) {
   return useMutation({
     mutationFn: (params: { file: File; onProgress?: (pct: number) => void }) =>
       uploadDocument(projectId, params.file, params.onProgress),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents", projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents", projectId] });
+      qc.invalidateQueries({ queryKey: ["requirements", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-coverage", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-gaps", projectId] });
+    },
   });
 }
 
@@ -29,7 +34,12 @@ export function useDeleteDocument(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (docId: string) => deleteDocument(projectId, docId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents", projectId] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents", projectId] });
+      qc.invalidateQueries({ queryKey: ["requirements", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-coverage", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-gaps", projectId] });
+    },
   });
 }
 

@@ -24,6 +24,7 @@ from ai_testplan_generator.api.security.projects import ensure_project_access
 from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
+from ai_testplan_generator.models import Requirement
 from ai_testplan_generator.pipelines.brain import Brain
 
 _log = structlog.get_logger(__name__)
@@ -62,6 +63,11 @@ class AncestorsResponse(BaseModel):
 class GapsResponse(BaseModel):
     project_id: str
     uncovered_requirement_ids: list[str] = Field(default_factory=list)
+
+
+class RequirementListResponse(BaseModel):
+    items: list[Requirement] = Field(default_factory=list)
+    total: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -204,6 +210,20 @@ async def trace_lineage(
                 )
 
     return LineageResponse(root=root, edges=edges, nodes=nodes)
+
+
+@router.get(
+    "/projects/{project_id}/requirements",
+    response_model=RequirementListResponse,
+    summary="List extracted project requirements",
+    dependencies=[Depends(require("project.read"))],
+)
+async def project_requirements(
+    project_id: str,
+    brain: Annotated[Brain, Depends(get_brain)],
+) -> RequirementListResponse:
+    reqs = await brain.memory.get_requirements_for_project(project_id)
+    return RequirementListResponse(items=reqs, total=len(reqs))
 
 
 @router.get(

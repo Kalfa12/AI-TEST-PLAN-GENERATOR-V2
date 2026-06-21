@@ -13,6 +13,7 @@ import { TBody, TD, TH, THead, TR, Table } from "@/components/ui/table";
 import { useToast } from "@/components/ui/toast";
 import { useCreatePlan, useDeletePlan, usePlans, usePlanJobPolling } from "./hooks";
 import { AgentProgress } from "./agent-progress";
+import { useRequirements } from "@/features/requirements/hooks";
 
 const schema = z.object({
   goal: z.string().min(1, "Goal is required"),
@@ -29,6 +30,7 @@ interface ActiveJob {
 
 export function PlansTable({ projectId }: { projectId: string }) {
   const { data: plans, isLoading } = usePlans(projectId);
+  const requirements = useRequirements(projectId);
   const create = useCreatePlan(projectId);
   const del = useDeletePlan(projectId);
   const toast = useToast();
@@ -169,6 +171,18 @@ export function PlansTable({ projectId }: { projectId: string }) {
       <Dialog open={open} onOpenChange={setOpen}>
         <h2 className="text-lg font-semibold mb-4">Generate plan</h2>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-md border border-border px-3 py-2">
+              <div className="text-xs text-muted-foreground">Extracted requirements</div>
+              <div className="mt-1 text-xl font-semibold">
+                {requirements.isLoading ? "..." : requirements.data?.length ?? 0}
+              </div>
+            </div>
+            <div className="rounded-md border border-border px-3 py-2">
+              <div className="text-xs text-muted-foreground">Existing plans</div>
+              <div className="mt-1 text-xl font-semibold">{plans?.length ?? 0}</div>
+            </div>
+          </div>
           <div className="space-y-1">
             <label className="text-sm font-medium">Goal</label>
             <Input
@@ -212,7 +226,10 @@ export function PlansTable({ projectId }: { projectId: string }) {
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button type="submit" disabled={create.isPending}>
+            <Button
+              type="submit"
+              disabled={create.isPending || (requirements.data?.length ?? 0) === 0}
+            >
               {create.isPending ? "Starting…" : "Generate"}
             </Button>
           </div>

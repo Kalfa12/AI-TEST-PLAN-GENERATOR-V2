@@ -1,27 +1,30 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate, useParams } from "@tanstack/react-router";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/toast";
+import { ChatListCard } from "@/features/chat/chat-list-card";
+import { DocumentsTable } from "@/features/documents/documents-table";
+import { useDocuments } from "@/features/documents/hooks";
+import { PlansTable } from "@/features/plans/plans-table";
+import { usePlans } from "@/features/plans/hooks";
+import { RequirementsTable } from "@/features/requirements/requirements-table";
+import { useRequirements } from "@/features/requirements/hooks";
+import { ProjectCoverageCard } from "@/features/traceability/coverage-card";
+import { formatDate } from "@/lib/utils";
+import type { ProjectIndustry } from "@/lib/api/types";
 import {
   useArchiveProject,
   useProject,
   useUpdateProject,
   useUpdateProjectBudget,
 } from "./hooks";
-import { useDocuments } from "@/features/documents/hooks";
-import { usePlans } from "@/features/plans/hooks";
-import { DocumentsTable } from "@/features/documents/documents-table";
-import { PlansTable } from "@/features/plans/plans-table";
 import { MembersCard } from "./members-card";
-import { ProjectCoverageCard } from "@/features/traceability/coverage-card";
-import { ChatListCard } from "@/features/chat/chat-list-card";
 import { ResourcesCard } from "./resources-card";
-import { formatDate } from "@/lib/utils";
-import type { ProjectIndustry } from "@/lib/api/types";
 
 const INDUSTRIES: Array<{ value: ProjectIndustry; label: string }> = [
   { value: "generic", label: "Generic" },
@@ -30,6 +33,19 @@ const INDUSTRIES: Array<{ value: ProjectIndustry; label: string }> = [
   { value: "medical", label: "Medical" },
   { value: "energy", label: "Energy" },
 ];
+
+const TABS = [
+  "Overview",
+  "Documents",
+  "Requirements",
+  "Plans",
+  "Traceability",
+  "Planning",
+  "Collaboration",
+  "Settings",
+] as const;
+
+type WorkspaceTab = (typeof TABS)[number];
 
 function industryLabel(industry: ProjectIndustry | undefined) {
   return INDUSTRIES.find((item) => item.value === industry)?.label ?? "Generic";
@@ -41,11 +57,13 @@ export function ProjectDashboard() {
   const project = useProject(projectId);
   const docs = useDocuments(projectId);
   const plans = usePlans(projectId);
+  const requirements = useRequirements(projectId);
   const update = useUpdateProject(projectId);
   const updateBudget = useUpdateProjectBudget(projectId);
   const archive = useArchiveProject();
   const toast = useToast();
 
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("Overview");
   const [editOpen, setEditOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [name, setName] = useState("");
@@ -88,7 +106,7 @@ export function ProjectDashboard() {
   };
 
   const onArchive = async () => {
-    if (!confirm(`Archive "${project.data?.name ?? "this project"}"? It will no longer appear in your project list.`)) return;
+    if (!confirm(`Archive "${project.data?.name ?? "this project"}"?`)) return;
     try {
       await archive.mutateAsync(projectId);
       toast.push({ title: "Project archived", tone: "success" });
@@ -149,115 +167,165 @@ export function ProjectDashboard() {
   const effectiveBudget = getEffectiveBudget(project.data);
   const spendRatio =
     effectiveBudget > 0 ? Math.min((spend / effectiveBudget) * 100, 100) : 100;
+  const coverageStats = useMemo(() => {
+    const total = requirements.data?.length ?? 0;
+    const plansCount = plans.data?.reduce((sum, plan) => sum + plan.n_test_cases, 0) ?? 0;
+    return { total, plansCount };
+  }, [plans.data, requirements.data]);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-start justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">
-            {project.data?.name ?? <Skeleton className="h-7 w-48 inline-block" />}
-          </h1>
-          {project.data?.description && (
-            <p className="text-sm text-muted-foreground mt-1">
-              {project.data.description}
-            </p>
-          )}
-          {project.data && (
-            <p className="text-xs text-muted-foreground mt-1">
-              Industry profile: {industryLabel(project.data.industry)}
-            </p>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={openEdit}>
-            Edit
-          </Button>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onArchive}
-            disabled={archive.isPending}
-          >
-            Archive
-          </Button>
-        </div>
-      </div>
+    <div className="min-h-screen bg-muted/20">
+      <header className="border-b border-border bg-background">
+        <div className="px-6 py-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <Badge tone="default">{industryLabel(project.data?.industry)}</Badge>
+                <span className="font-mono text-xs text-muted-foreground">{projectId}</span>
+              </div>
+              <h1 className="truncate text-2xl font-semibold tracking-normal">
+                {project.data?.name ?? <Skeleton className="inline-block h-7 w-56" />}
+              </h1>
+              {project.data?.description && (
+                <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
+                  {project.data.description}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="outline" onClick={openEdit}>
+                Edit project
+              </Button>
+              <Button size="sm" variant="outline" onClick={openBudget}>
+                LLM budget
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={onArchive}
+                disabled={archive.isPending}
+              >
+                Archive
+              </Button>
+            </div>
+          </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <SummaryCard
-          title="Documents"
-          value={docs.data?.length ?? 0}
-          loading={docs.isLoading}
-        />
-        <SummaryCard
-          title="Plans"
-          value={plans.data?.length ?? 0}
-          loading={plans.isLoading}
-        />
-        <Card>
-          <CardHeader>
-            <CardTitle>LLM budget</CardTitle>
-          </CardHeader>
-          <CardBody className="space-y-3">
-            {project.isLoading ? (
-              <Skeleton className="h-8 w-24" />
-            ) : (
-              <>
-                <div>
-                  <div className="text-2xl font-semibold">
-                    {formatCurrency(spend)}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    of {formatCurrency(effectiveBudget)} this month
-                  </div>
-                </div>
-                <div className="h-2 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className="h-full bg-primary"
-                    style={{ width: `${spendRatio}%` }}
-                  />
-                </div>
-                {isOverrideActive(project.data) && (
-                  <div className="text-xs text-muted-foreground">
-                    Temporary override active until{" "}
-                    {formatDate(project.data?.budget_override_until)}
-                  </div>
-                )}
+          <div className="mt-5 overflow-x-auto">
+            <div className="flex min-w-max gap-1 border-b border-border">
+              {TABS.map((tab) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setActiveTab(tab)}
+                  className={
+                    activeTab === tab
+                      ? "border-b-2 border-primary px-3 py-2 text-sm font-medium text-foreground"
+                      : "border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+                  }
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="space-y-5 p-6">
+        {activeTab === "Overview" && (
+          <>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                title="Documents"
+                value={docs.data?.length ?? 0}
+                loading={docs.isLoading}
+              />
+              <MetricCard
+                title="Requirements"
+                value={coverageStats.total}
+                loading={requirements.isLoading}
+              />
+              <MetricCard
+                title="Plans"
+                value={plans.data?.length ?? 0}
+                loading={plans.isLoading}
+              />
+              <MetricCard
+                title="Test cases"
+                value={coverageStats.plansCount}
+                loading={plans.isLoading}
+              />
+            </div>
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(340px,0.6fr)]">
+              <ProjectCoverageCard projectId={projectId} />
+              <BudgetPanel
+                spend={spend}
+                budget={effectiveBudget}
+                ratio={spendRatio}
+                overrideActive={isOverrideActive(project.data)}
+                overrideUntil={project.data?.budget_override_until}
+                onEdit={openBudget}
+              />
+            </div>
+            <DocumentsTable projectId={projectId} />
+          </>
+        )}
+
+        {activeTab === "Documents" && <DocumentsTable projectId={projectId} />}
+        {activeTab === "Requirements" && <RequirementsTable projectId={projectId} />}
+        {activeTab === "Plans" && <PlansTable projectId={projectId} />}
+        {activeTab === "Traceability" && (
+          <div className="space-y-5">
+            <ProjectCoverageCard projectId={projectId} />
+            <Card>
+              <CardHeader className="flex items-center justify-between">
+                <CardTitle>Trace graph</CardTitle>
                 <Button
                   size="sm"
                   variant="outline"
-                  type="button"
-                  onClick={openBudget}
+                  onClick={() => navigate({ to: "/traceability" })}
                 >
-                  Edit budget
+                  Open graph
                 </Button>
-              </>
-            )}
-          </CardBody>
-        </Card>
-        <Card>
-          <CardHeader>
-            <CardTitle>Last activity</CardTitle>
-          </CardHeader>
-          <CardBody className="text-sm text-muted-foreground">
-            {project.isLoading ? (
-              <Skeleton className="h-5 w-32" />
-            ) : (
-              formatDate(project.data?.created_at)
-            )}
-          </CardBody>
-        </Card>
-      </div>
-
-      <ProjectCoverageCard projectId={projectId} />
-      <DocumentsTable projectId={projectId} />
-      <PlansTable projectId={projectId} />
-      <ResourcesCard projectId={projectId} />
-      <ChatListCard projectId={projectId} />
-      <MembersCard projectId={projectId} />
+              </CardHeader>
+              <CardBody className="grid gap-4 md:grid-cols-3">
+                <TraceMetric label="Extracted requirements" value={requirements.data?.length ?? 0} />
+                <TraceMetric label="Generated plans" value={plans.data?.length ?? 0} />
+                <TraceMetric label="Source documents" value={docs.data?.length ?? 0} />
+              </CardBody>
+            </Card>
+          </div>
+        )}
+        {activeTab === "Planning" && <ResourcesCard projectId={projectId} />}
+        {activeTab === "Collaboration" && (
+          <div className="grid gap-5 xl:grid-cols-2">
+            <ChatListCard projectId={projectId} />
+            <MembersCard projectId={projectId} />
+          </div>
+        )}
+        {activeTab === "Settings" && (
+          <div className="grid gap-5 xl:grid-cols-2">
+            <ProjectSettingsPanel
+              projectName={project.data?.name}
+              description={project.data?.description}
+              industry={project.data?.industry}
+              createdAt={project.data?.created_at}
+              onEdit={openEdit}
+            />
+            <BudgetPanel
+              spend={spend}
+              budget={effectiveBudget}
+              ratio={spendRatio}
+              overrideActive={isOverrideActive(project.data)}
+              overrideUntil={project.data?.budget_override_until}
+              onEdit={openBudget}
+            />
+          </div>
+        )}
+      </main>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <h2 className="text-lg font-semibold mb-4">Edit project</h2>
+        <h2 className="mb-4 text-lg font-semibold">Edit project</h2>
         <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Name</label>
@@ -289,14 +357,14 @@ export function ProjectDashboard() {
               Cancel
             </Button>
             <Button onClick={onSave} disabled={update.isPending || !name.trim()}>
-              {update.isPending ? "Saving…" : "Save"}
+              {update.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>
       </Dialog>
 
       <Dialog open={budgetOpen} onOpenChange={setBudgetOpen}>
-        <h2 className="text-lg font-semibold mb-4">LLM budget</h2>
+        <h2 className="mb-4 text-lg font-semibold">LLM budget</h2>
         <div className="space-y-4">
           <div className="space-y-1">
             <label className="text-sm font-medium">Monthly cap (USD)</label>
@@ -333,7 +401,7 @@ export function ProjectDashboard() {
               Cancel
             </Button>
             <Button onClick={onSaveBudget} disabled={updateBudget.isPending}>
-              {updateBudget.isPending ? "Saving…" : "Save"}
+              {updateBudget.isPending ? "Saving..." : "Save"}
             </Button>
           </div>
         </div>
@@ -342,7 +410,7 @@ export function ProjectDashboard() {
   );
 }
 
-function SummaryCard({
+function MetricCard({
   title,
   value,
   loading,
@@ -354,16 +422,108 @@ function SummaryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{title}</CardTitle>
+        <CardTitle className="text-sm text-muted-foreground">{title}</CardTitle>
       </CardHeader>
       <CardBody>
         {loading ? (
-          <Skeleton className="h-8 w-12" />
+          <Skeleton className="h-8 w-16" />
         ) : (
           <div className="text-3xl font-semibold">{value}</div>
         )}
       </CardBody>
     </Card>
+  );
+}
+
+function BudgetPanel({
+  spend,
+  budget,
+  ratio,
+  overrideActive,
+  overrideUntil,
+  onEdit,
+}: {
+  spend: number;
+  budget: number;
+  ratio: number;
+  overrideActive: boolean;
+  overrideUntil?: string | null;
+  onEdit: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle>LLM budget</CardTitle>
+        <Button size="sm" variant="outline" type="button" onClick={onEdit}>
+          Edit
+        </Button>
+      </CardHeader>
+      <CardBody className="space-y-3">
+        <div>
+          <div className="text-2xl font-semibold">{formatCurrency(spend)}</div>
+          <div className="text-xs text-muted-foreground">
+            of {formatCurrency(budget)} this month
+          </div>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-muted">
+          <div className="h-full bg-primary" style={{ width: `${ratio}%` }} />
+        </div>
+        {overrideActive && (
+          <div className="text-xs text-muted-foreground">
+            Override until {formatDate(overrideUntil)}
+          </div>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function ProjectSettingsPanel({
+  projectName,
+  description,
+  industry,
+  createdAt,
+  onEdit,
+}: {
+  projectName?: string;
+  description?: string | null;
+  industry?: ProjectIndustry;
+  createdAt?: string;
+  onEdit: () => void;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex items-center justify-between">
+        <CardTitle>Project settings</CardTitle>
+        <Button size="sm" variant="outline" type="button" onClick={onEdit}>
+          Edit
+        </Button>
+      </CardHeader>
+      <CardBody className="divide-y divide-border p-0 text-sm">
+        <SettingRow label="Name" value={projectName ?? ""} />
+        <SettingRow label="Description" value={description || ""} />
+        <SettingRow label="Industry" value={industryLabel(industry)} />
+        <SettingRow label="Created" value={formatDate(createdAt)} />
+      </CardBody>
+    </Card>
+  );
+}
+
+function SettingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid grid-cols-[150px_1fr] gap-4 px-4 py-3">
+      <div className="text-muted-foreground">{label}</div>
+      <div className="min-w-0 truncate font-medium">{value || "-"}</div>
+    </div>
+  );
+}
+
+function TraceMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border p-4">
+      <div className="text-sm text-muted-foreground">{label}</div>
+      <div className="mt-2 text-2xl font-semibold">{value}</div>
+    </div>
   );
 }
 
@@ -410,9 +570,11 @@ function toDateTimeLocal(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
-  return [
-    date.getFullYear(),
-    pad(date.getMonth() + 1),
-    pad(date.getDate()),
-  ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  return (
+    [
+      date.getFullYear(),
+      pad(date.getMonth() + 1),
+      pad(date.getDate()),
+    ].join("-") + `T${pad(date.getHours())}:${pad(date.getMinutes())}`
+  );
 }

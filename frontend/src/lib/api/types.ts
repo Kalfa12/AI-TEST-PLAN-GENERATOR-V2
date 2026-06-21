@@ -62,6 +62,39 @@ export interface DocumentListResponse {
   offset: number;
 }
 
+export type RequirementKind =
+  | "functional"
+  | "performance"
+  | "safety"
+  | "reliability"
+  | "security"
+  | "regulatory"
+  | "environmental"
+  | "interface"
+  | "usability"
+  | "operational";
+
+export interface Requirement {
+  id: string;
+  project_id: string | null;
+  external_id?: string | null;
+  kind: RequirementKind;
+  title: string;
+  statement: string;
+  rationale?: string | null;
+  acceptance_hint?: string | null;
+  priority: number;
+  source_document_id: string;
+  source_section_id?: string | null;
+  source_chunk_ids: string[];
+  verbatim_excerpt?: string | null;
+}
+
+export interface RequirementListResponse {
+  items: Requirement[];
+  total: number;
+}
+
 export interface DocumentUploadAccepted {
   job_id: string;
   document_id: string | null;

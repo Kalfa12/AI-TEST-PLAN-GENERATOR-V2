@@ -20,6 +20,8 @@ export function ProjectCoverageCard({ projectId }: { projectId: string }) {
   const matrix = coverage.data ?? {};
   const total = Object.keys(matrix).length;
   const uncovered = gaps.data?.uncovered_requirement_ids ?? [];
+  const visibleUncovered = uncovered.slice(0, 40);
+  const hiddenUncovered = Math.max(uncovered.length - visibleUncovered.length, 0);
   const covered = total - uncovered.length;
   const pct = total === 0 ? 0 : Math.round((covered / total) * 100);
 
@@ -42,12 +44,12 @@ export function ProjectCoverageCard({ projectId }: { projectId: string }) {
           </p>
         ) : (
           <div className="space-y-3">
-            <div className="text-sm">
-              <span className="font-medium">{covered}</span>
-              <span className="text-muted-foreground"> / {total} requirements covered by at least one test case</span>
+            <div className="grid gap-3 text-sm sm:grid-cols-3">
+              <CoverageStat label="Extracted" value={total} />
+              <CoverageStat label="Covered" value={covered} />
+              <CoverageStat label="Uncovered" value={uncovered.length} />
             </div>
 
-            {/* Progress bar */}
             <div className="h-2 bg-muted rounded-full overflow-hidden">
               <div
                 className={
@@ -67,11 +69,16 @@ export function ProjectCoverageCard({ projectId }: { projectId: string }) {
                   Uncovered ({uncovered.length})
                 </div>
                 <div className="flex flex-wrap gap-1 max-h-32 overflow-auto">
-                  {uncovered.map((rid) => (
+                  {visibleUncovered.map((rid) => (
                     <Badge key={rid} tone="danger" className="font-mono">
                       {rid}
                     </Badge>
                   ))}
+                  {hiddenUncovered > 0 && (
+                    <Badge tone="default" className="font-mono">
+                      +{hiddenUncovered} more
+                    </Badge>
+                  )}
                 </div>
               </div>
             )}
@@ -79,5 +86,14 @@ export function ProjectCoverageCard({ projectId }: { projectId: string }) {
         )}
       </CardBody>
     </Card>
+  );
+}
+
+function CoverageStat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="mt-1 text-lg font-semibold">{value}</div>
+    </div>
   );
 }

@@ -66,7 +66,11 @@ export function useGenerateRequirementTestCase(projectId: string, planId: string
 export function useCreatePlan(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: { goal: string; detail_level: "summary" | "detailed" }) =>
+    mutationFn: (body: {
+      goal: string;
+      detail_level: "summary" | "detailed";
+      interactive?: boolean;
+    }) =>
       createPlan(projectId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", projectId] }),
   });
