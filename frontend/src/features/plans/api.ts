@@ -3,6 +3,7 @@ import type {
   CheckpointResponse,
   CoverageMatrixResponse,
   CreatePlanAccepted,
+  CreatePlanRequest,
   GenerateRequirementTestCaseResponse,
   JobStatus,
   PlanListItem,
@@ -70,11 +71,7 @@ export async function generateRequirementTestCase(
 
 export async function createPlan(
   projectId: string,
-  body: {
-    goal: string;
-    detail_level: "summary" | "detailed";
-    interactive?: boolean;
-  },
+  body: CreatePlanRequest,
 ): Promise<CreatePlanAccepted> {
   const res = await http.post<CreatePlanAccepted>(
     `/projects/${projectId}/plans`,

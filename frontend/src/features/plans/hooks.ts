@@ -11,7 +11,7 @@ import {
   schedulePlan,
   updateTestCaseStatus,
 } from "./api";
-import type { TestCaseStatus } from "@/lib/api/types";
+import type { CreatePlanRequest, TestCaseStatus } from "@/lib/api/types";
 
 export function usePlans(projectId: string | undefined) {
   return useQuery({
@@ -66,12 +66,7 @@ export function useGenerateRequirementTestCase(projectId: string, planId: string
 export function useCreatePlan(projectId: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (body: {
-      goal: string;
-      detail_level: "summary" | "detailed";
-      interactive?: boolean;
-    }) =>
-      createPlan(projectId, body),
+    mutationFn: (body: CreatePlanRequest) => createPlan(projectId, body),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plans", projectId] }),
   });
 }

@@ -19,6 +19,8 @@ async def run_autonomous(
     detail_level: str,
     max_revision_rounds: int,
     session_id: str,
+    requirement_mode: str = "all",
+    requirement_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the autonomous plan-generation pipeline and persist the result."""
     from ai_testplan_generator.models import DetailLevel
@@ -52,6 +54,8 @@ async def run_autonomous(
             goal=goal,
             detail_level=detail,
             max_revision_rounds=max_revision_rounds,
+            requirement_mode=requirement_mode,
+            requirement_ids=requirement_ids,
             session_id=session_id,
         )
         plan = result.plan
@@ -126,6 +130,8 @@ async def run_autonomous(
                         "goal": goal,
                         "detail_level": detail_level,
                         "max_revision_rounds": max_revision_rounds,
+                        "requirement_mode": requirement_mode,
+                        "requirement_ids": requirement_ids,
                         "session_id": session_id,
                     },
                     "failed_at": datetime.now(timezone.utc).isoformat(),
@@ -143,6 +149,8 @@ async def run_autonomous_interactive(
     detail_level: str,
     max_revision_rounds: int,
     session_id: str,
+    requirement_mode: str = "all",
+    requirement_ids: list[str] | None = None,
 ) -> dict[str, Any]:
     """Run the user-gated autonomous pipeline.
 
@@ -190,6 +198,8 @@ async def run_autonomous_interactive(
             goal=goal,
             detail_level=DetailLevel(detail_level),
             max_revision_rounds=max_revision_rounds,
+            requirement_mode=requirement_mode,
+            requirement_ids=requirement_ids,
             session_id=session_id,
             job_repo=job_repo,
         )

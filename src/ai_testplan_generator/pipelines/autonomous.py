@@ -27,6 +27,7 @@ from ai_testplan_generator.agents import AutonomousState
 from ai_testplan_generator.graphs import build_autonomous_graph
 from ai_testplan_generator.models import DetailLevel, TestPlan, TestSchedule
 from ai_testplan_generator.pipelines.brain import Brain
+from ai_testplan_generator.pipelines.requirement_scope import resolve_requirement_scope
 
 _log = structlog.get_logger(__name__)
 
@@ -50,6 +51,8 @@ class AutonomousPipeline:
         goal: str,
         detail_level: DetailLevel = DetailLevel.DETAILED,
         max_revision_rounds: int = 3,
+        requirement_mode: str = "all",
+        requirement_ids: list[str] | None = None,
         session_id: str | None = None,
     ) -> AutonomousResult:
         session_id = session_id or f"sess_{uuid4().hex[:10]}"
@@ -61,7 +64,12 @@ class AutonomousPipeline:
         # so the graph can reason over counts without touching memory each
         # time).
         docs = await self._brain.memory.get_documents_for_project(project_id)
-        reqs = await self._brain.memory.get_requirements_for_project(project_id)
+        stored_reqs = await self._brain.memory.get_requirements_for_project(project_id)
+        scope = resolve_requirement_scope(
+            requirements=stored_reqs,
+            requirement_mode=requirement_mode,
+            requirement_ids=requirement_ids,
+        )
 
         initial = AutonomousState(
             session_id=session_id,
@@ -69,7 +77,7 @@ class AutonomousPipeline:
             goal=goal,
             detail_level=detail_level,
             documents=docs,
-            requirements=reqs,
+            requirements=scope.requirements,
             max_revision_rounds=max_revision_rounds,
         )
         _log.info("autonomous_start", session_id=session_id, goal=goal)

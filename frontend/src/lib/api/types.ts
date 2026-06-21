@@ -113,6 +113,16 @@ export interface PlanListResponse {
   total: number;
 }
 
+export type RequirementMode = "all" | "selected" | "reextract";
+
+export interface CreatePlanRequest {
+  goal: string;
+  detail_level: "summary" | "detailed";
+  requirement_mode?: RequirementMode;
+  requirement_ids?: string[];
+  interactive?: boolean;
+}
+
 export interface TestStep {
   id: string;
   index: number;

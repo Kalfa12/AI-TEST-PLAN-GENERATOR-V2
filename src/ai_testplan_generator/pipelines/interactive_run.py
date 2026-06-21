@@ -33,6 +33,7 @@ from ai_testplan_generator.api.jobs import Job, JobStatus
 from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.models import Chunk, DefectReport, DetailLevel, TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
+from ai_testplan_generator.pipelines.requirement_scope import resolve_requirement_scope
 from ai_testplan_generator.quality import check_requirements, check_test_plan
 
 _log = structlog.get_logger(__name__)
@@ -63,6 +64,8 @@ async def run_interactive(
     detail_level: DetailLevel,
     max_revision_rounds: int,
     session_id: str,
+    requirement_mode: str = "all",
+    requirement_ids: list[str] | None = None,
     job_repo: JobRepository | None = None,
 ) -> dict[str, Any]:
     """Execute the autonomous pipeline with user-gated checkpoints.
@@ -75,6 +78,11 @@ async def run_interactive(
     ctx: AgentContext = brain.context(session_id=session_id, project_id=project_id)
     docs = await brain.memory.get_documents_for_project(project_id)
     reqs_existing = await brain.memory.get_requirements_for_project(project_id)
+    scope = resolve_requirement_scope(
+        requirements=reqs_existing,
+        requirement_mode=requirement_mode,
+        requirement_ids=requirement_ids,
+    )
 
     state = AutonomousState(
         session_id=session_id,
@@ -82,45 +90,49 @@ async def run_interactive(
         goal=goal,
         detail_level=detail_level,
         documents=docs,
-        requirements=reqs_existing,
+        requirements=scope.requirements,
         max_revision_rounds=max_revision_rounds,
         interactive=True,
     )
-
-    # Eagerly gather chunks once — used by analyst + extractor.
-    project_chunks: list[Chunk] = []
-    for d in docs:
-        project_chunks.extend(await brain.memory.get_chunks_for_document(d.id))
-    if not project_chunks:
-        raise RuntimeError("no chunks available for requirement extraction")
 
     # ---- step: analyst (no checkpoint, low value to gate)
     analyst = DocumentAnalystAgent(ctx)
     await analyst.invoke(DocumentAnalystAgent.Input(documents=state.documents))
 
     # ---- step: extractor (CHECKPOINT)
-    while True:
-        feedback = state.user_feedback.get("extractor", [])
-        extractor = RequirementExtractorAgent(ctx)
-        out_e = await extractor.invoke(
-            RequirementExtractorAgent.Input(
-                chunks=project_chunks, user_feedback=feedback
+    if scope.needs_extraction:
+        project_chunks: list[Chunk] = []
+        for d in docs:
+            project_chunks.extend(await brain.memory.get_chunks_for_document(d.id))
+        if not project_chunks:
+            raise RuntimeError("no chunks available for requirement extraction")
+
+        while True:
+            feedback = state.user_feedback.get("extractor", [])
+            extractor = RequirementExtractorAgent(ctx)
+            out_e = await extractor.invoke(
+                RequirementExtractorAgent.Input(
+                    chunks=project_chunks, user_feedback=feedback
+                )
             )
-        )
-        state.requirements = out_e.requirements
-        if not state.requirements:
-            raise RuntimeError(
-                "requirement extraction produced no requirements; "
-                "cannot generate a grounded test plan"
+            state.requirements = out_e.requirements
+            if not state.requirements:
+                raise RuntimeError(
+                    "requirement extraction produced no requirements; "
+                    "cannot generate a grounded test plan"
+                )
+            _update_partial_defects(state)
+            directive = await _await_user(
+                job, agent="extractor", state=state, job_repo=job_repo
             )
-        _update_partial_defects(state)
-        directive = await _await_user(job, agent="extractor", state=state, job_repo=job_repo)
-        if directive.action == "accept":
-            break
-        if directive.action == "abort":
-            raise ResumeAborted()
-        if directive.action == "reprompt" and directive.feedback:
-            state.user_feedback.setdefault("extractor", []).append(directive.feedback)
+            if directive.action == "accept":
+                break
+            if directive.action == "abort":
+                raise ResumeAborted()
+            if directive.action == "reprompt" and directive.feedback:
+                state.user_feedback.setdefault("extractor", []).append(directive.feedback)
+    elif not state.requirements:
+        raise RuntimeError("no requirements selected; cannot generate a grounded test plan")
 
     # ---- step: architect (CHECKPOINT)
     plan: TestPlan | None = None

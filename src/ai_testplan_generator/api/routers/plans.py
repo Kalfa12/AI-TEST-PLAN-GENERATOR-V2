@@ -17,19 +17,19 @@ import structlog
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
+from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
+from ai_testplan_generator.agents.traceability import TraceabilityAgent
 from ai_testplan_generator.api.deps import (
     get_blob_store,
     get_brain,
     get_current_user,
     get_defects,
-    get_job_repo,
     get_job_queue,
+    get_job_repo,
     get_plans,
     get_project_repo,
 )
 from ai_testplan_generator.api.errors import NotFoundError, ValidationError
-from ai_testplan_generator.api.security.projects import ensure_project_access
-from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.api.schemas.plans import (
     CheckpointResponse,
     CoverageMatrixResponse,
@@ -43,12 +43,12 @@ from ai_testplan_generator.api.schemas.plans import (
     TestCaseSummary,
     TestPlanSummary,
 )
-from ai_testplan_generator.agents.test_generator import TestGeneratorAgent
-from ai_testplan_generator.agents.traceability import TraceabilityAgent
-from ai_testplan_generator.jobs.queue import JobQueueProtocol
+from ai_testplan_generator.api.security.projects import ensure_project_access
+from ai_testplan_generator.api.security.rbac import require
 from ai_testplan_generator.domain.jobs import JobRepository
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
+from ai_testplan_generator.jobs.queue import JobQueueProtocol
 from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.storage.base import BlobStore
@@ -86,7 +86,20 @@ async def create_plan(
     project_id: str,
     body: CreatePlanRequest,
     job_queue: Annotated[JobQueueProtocol, Depends(get_job_queue)],
+    brain: Annotated[Brain, Depends(get_brain)],
 ) -> CreatePlanAccepted:
+    if body.requirement_mode.value == "selected":
+        requirements = await brain.memory.get_requirements_for_project(project_id)
+        existing_ids = {req.id for req in requirements}
+        missing_ids = [
+            req_id for req_id in body.requirement_ids if req_id not in existing_ids
+        ]
+        if missing_ids:
+            raise ValidationError(
+                "Selected requirements do not belong to this project: "
+                + ", ".join(missing_ids[:10])
+            )
+
     session_id = f"sess_{uuid4().hex[:10]}"
     task_name = "run_autonomous_interactive" if body.interactive else "run_autonomous"
     job_id = await job_queue.enqueue(
@@ -95,6 +108,8 @@ async def create_plan(
         goal=body.goal,
         detail_level=body.detail_level.value,
         max_revision_rounds=body.max_revision_rounds,
+        requirement_mode=body.requirement_mode.value,
+        requirement_ids=body.requirement_ids,
         session_id=session_id,
     )
     return CreatePlanAccepted(job_id=job_id, session_id=session_id)

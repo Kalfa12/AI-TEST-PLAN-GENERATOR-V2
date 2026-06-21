@@ -2,20 +2,44 @@
 
 from __future__ import annotations
 
+from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from ai_testplan_generator.models import DetailLevel, TestCaseStatus, TestPlan
+
+
+class RequirementMode(StrEnum):
+    ALL = "all"
+    SELECTED = "selected"
+    REEXTRACT = "reextract"
 
 
 class CreatePlanRequest(BaseModel):
     goal: str
     detail_level: DetailLevel = DetailLevel.DETAILED
     max_revision_rounds: int = Field(default=1, ge=1, le=10)
+    requirement_mode: RequirementMode = RequirementMode.ALL
+    requirement_ids: list[str] = Field(default_factory=list)
     # When true, the run pauses after extractor / architect / generator
     # for user accept-or-reprompt feedback before continuing.
     interactive: bool = False
+
+    @model_validator(mode="after")
+    def validate_requirement_scope(self) -> CreatePlanRequest:
+        if self.requirement_mode == RequirementMode.SELECTED:
+            if not self.requirement_ids:
+                raise ValueError(
+                    "requirement_ids must contain at least one id when "
+                    "requirement_mode is 'selected'."
+                )
+            return self
+        if self.requirement_ids:
+            raise ValueError(
+                "requirement_ids can only be provided when requirement_mode is 'selected'."
+            )
+        return self
 
 
 class CreatePlanAccepted(BaseModel):
@@ -106,7 +130,7 @@ class TestPlanSummary(BaseModel):
     test_cases: list[TestCaseSummary] = Field(default_factory=list)
 
     @classmethod
-    def from_plan(cls, plan: TestPlan) -> "TestPlanSummary":
+    def from_plan(cls, plan: TestPlan) -> TestPlanSummary:
         return cls(
             id=plan.id,
             project_id=plan.project_id,
@@ -128,9 +152,7 @@ class TestPlanSummary(BaseModel):
                     status=tc.status,
                     status_note=tc.status_note,
                     tags=tc.tags,
-                    source_evidence=[
-                        ev.model_dump(mode="json") for ev in tc.source_evidence
-                    ],
+                    source_evidence=[ev.model_dump(mode="json") for ev in tc.source_evidence],
                 )
                 for tc in plan.test_cases
             ],

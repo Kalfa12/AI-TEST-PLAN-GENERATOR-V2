@@ -64,6 +64,7 @@ export function ProjectDashboard() {
   const toast = useToast();
 
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("Overview");
+  const [selectedRequirementIds, setSelectedRequirementIds] = useState<string[]>([]);
   const [editOpen, setEditOpen] = useState(false);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [name, setName] = useState("");
@@ -272,8 +273,21 @@ export function ProjectDashboard() {
         )}
 
         {activeTab === "Documents" && <DocumentsTable projectId={projectId} />}
-        {activeTab === "Requirements" && <RequirementsTable projectId={projectId} />}
-        {activeTab === "Plans" && <PlansTable projectId={projectId} />}
+        {activeTab === "Requirements" && (
+          <RequirementsTable
+            projectId={projectId}
+            selectedRequirementIds={selectedRequirementIds}
+            onSelectedRequirementIdsChange={setSelectedRequirementIds}
+            onGenerateSelected={() => setActiveTab("Plans")}
+          />
+        )}
+        {activeTab === "Plans" && (
+          <PlansTable
+            projectId={projectId}
+            selectedRequirementIds={selectedRequirementIds}
+            onClearSelectedRequirements={() => setSelectedRequirementIds([])}
+          />
+        )}
         {activeTab === "Traceability" && (
           <div className="space-y-5">
             <ProjectCoverageCard projectId={projectId} />
