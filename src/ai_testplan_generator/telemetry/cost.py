@@ -4,7 +4,7 @@ Writes one row per LLM call to the ``llm_usage`` SQLite table (schema in
 migrations/004_llm_usage.sql) and exposes a summary query used by the admin
 endpoint.
 
-Pricing last updated: 2025-04-25.  All prices in USD per 1 000 tokens.
+Pricing last updated: 2026-06-21.  All prices in USD per 1 000 tokens.
 """
 
 from __future__ import annotations
@@ -48,6 +48,11 @@ COST_TABLE: dict[str, dict[str, float]] = {
     # Google Gemini
     "gemini/gemini-2.5-pro": {"input": 0.00125, "output": 0.01},
     "gemini/gemini-2.5-flash": {"input": 0.000075, "output": 0.0003},
+    # OpenRouter aliases used by the local dev configuration.
+    "deepseek-v4-flash": {"input": 0.00009, "output": 0.00018},
+    "deepseek/deepseek-v4-flash": {"input": 0.00009, "output": 0.00018},
+    "gemma-4-31b-it": {"input": 0.00012, "output": 0.00035},
+    "google/gemma-4-31b-it": {"input": 0.00012, "output": 0.00035},
     # Test/mock models — zero cost
     "mock-model": {"input": 0.0, "output": 0.0},
 }

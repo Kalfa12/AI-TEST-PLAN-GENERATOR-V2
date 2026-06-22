@@ -106,6 +106,26 @@ class TestPlanCreation:
         assert queue.last_kwargs["requirement_mode"] == "selected"
         assert queue.last_kwargs["requirement_ids"] == [req.id]
 
+    async def test_create_plan_uses_default_goal_when_blank(
+        self,
+        client: AsyncClient,
+    ) -> None:
+        app = client._transport.app  # type: ignore[attr-defined]
+        queue = SpyQueue()
+        app.dependency_overrides[get_job_queue] = lambda: queue
+
+        resp = await client.post(
+            "/projects/proj-default-goal/plans",
+            json={"goal": "   ", "detail_level": "detailed"},
+        )
+
+        assert resp.status_code == 202
+        assert queue.last_kwargs is not None
+        assert (
+            queue.last_kwargs["goal"]
+            == "Generate a complete test plan from the current project requirements."
+        )
+
     async def test_list_plans_empty(self, client: AsyncClient) -> None:
         resp = await client.get("/projects/proj-empty/plans")
         assert resp.status_code == 200

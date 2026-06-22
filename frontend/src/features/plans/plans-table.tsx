@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +17,7 @@ import { AgentProgress } from "./agent-progress";
 import { useRequirements } from "@/features/requirements/hooks";
 
 const schema = z.object({
-  goal: z.string().min(1, "Goal is required"),
+  goal: z.string().default(""),
   detail_level: z.enum(["summary", "detailed"]).default("detailed"),
   requirement_mode: z.enum(["all", "selected", "reextract"]).default("all"),
   interactive: z.boolean().default(false),
@@ -46,6 +47,7 @@ export function PlansTable({
   const del = useDeletePlan(projectId);
   const toast = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [activeJob, setActiveJob] = useState<ActiveJob | null>(null);
 
@@ -90,9 +92,18 @@ export function PlansTable({
       .map((id) => byId.get(id)?.external_id ?? byId.get(id)?.id ?? id);
   }, [requirements.data, selectedRequirementIds]);
 
-  const handleJobDone = useCallback((_planId: string | null) => {
+  const handleJobDone = useCallback((planId: string | null) => {
     setActiveJob(null);
-  }, []);
+    queryClient.invalidateQueries({ queryKey: ["plans", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-coverage", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-gaps", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["chat-context", projectId] });
+    if (planId) {
+      queryClient.invalidateQueries({ queryKey: ["plan", projectId, planId] });
+      queryClient.invalidateQueries({ queryKey: ["plan-coverage", projectId, planId] });
+      queryClient.invalidateQueries({ queryKey: ["plan-defects", projectId, planId] });
+    }
+  }, [projectId, queryClient]);
 
   const { status: jobStatus, error: jobError } = usePlanJobPolling(
     activeJob?.jobId ?? null,
@@ -103,6 +114,9 @@ export function PlansTable({
     try {
       const r = await create.mutateAsync({
         ...values,
+        goal:
+          values.goal.trim() ||
+          "Generate a complete test plan from the current project requirements.",
         requirement_ids:
           values.requirement_mode === "selected" ? selectedRequirementIds : [],
       });
@@ -236,7 +250,7 @@ export function PlansTable({
           <div className="space-y-1">
             <label className="text-sm font-medium">Goal</label>
             <Input
-              placeholder="e.g. Validate API authentication for v2 release"
+              placeholder="Optional focus, e.g. validate API authentication for v2 release"
               {...form.register("goal")}
             />
             {form.formState.errors.goal && (

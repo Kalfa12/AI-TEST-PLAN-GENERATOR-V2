@@ -100,12 +100,16 @@ async def create_plan(
                 + ", ".join(missing_ids[:10])
             )
 
+    goal = (
+        body.goal.strip()
+        or "Generate a complete test plan from the current project requirements."
+    )
     session_id = f"sess_{uuid4().hex[:10]}"
     task_name = "run_autonomous_interactive" if body.interactive else "run_autonomous"
     job_id = await job_queue.enqueue(
         task_name,
         project_id=project_id,
-        goal=body.goal,
+        goal=goal,
         detail_level=body.detail_level.value,
         max_revision_rounds=body.max_revision_rounds,
         requirement_mode=body.requirement_mode.value,

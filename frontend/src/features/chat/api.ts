@@ -1,6 +1,6 @@
 import { http, wsBaseURL } from "@/lib/api/http";
 import { readTokens } from "@/lib/auth/storage";
-import type { ChatReply } from "@/lib/api/types";
+import type { ChatContextSummary, ChatReply } from "@/lib/api/types";
 
 export async function sendChat(body: {
   session_id?: string;
@@ -8,6 +8,13 @@ export async function sendChat(body: {
   message: string;
 }): Promise<ChatReply> {
   const res = await http.post<ChatReply>("/chat", body);
+  return res.data;
+}
+
+export async function getChatContext(projectId: string): Promise<ChatContextSummary> {
+  const res = await http.get<ChatContextSummary>("/chat/context", {
+    params: { project_id: projectId },
+  });
   return res.data;
 }
 

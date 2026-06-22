@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Drawer } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
@@ -16,6 +17,7 @@ export function UploadDrawer({
 }) {
   const upload = useUploadDocument(projectId);
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [progress, setProgress] = useState(0);
   const [jobId, setJobId] = useState<string | null>(null);
@@ -35,6 +37,11 @@ export function UploadDrawer({
   useEffect(() => {
     if (!jobId) return;
     if (job.status === "succeeded") {
+      queryClient.invalidateQueries({ queryKey: ["documents", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["requirements", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-coverage", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-gaps", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["chat-context", projectId] });
       toast.push({ title: "Ingestion complete", tone: "success" });
       onOpenChange(false);
     } else if (job.status === "failed") {
@@ -44,7 +51,7 @@ export function UploadDrawer({
         tone: "error",
       });
     }
-  }, [job.status, job.error, jobId, toast, onOpenChange]);
+  }, [job.status, job.error, jobId, projectId, queryClient, toast, onOpenChange]);
 
   const onSubmit = async () => {
     if (!file) return;

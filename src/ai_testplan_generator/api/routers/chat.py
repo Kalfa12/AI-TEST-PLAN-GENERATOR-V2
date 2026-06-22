@@ -3,7 +3,7 @@
 POST /chat                        send one turn -> ChatReply
 GET  /chat/{session_id}/history   episodic history for a session
 POST /chat/{session_id}/confirm   reject unsupported pending mutations
-WS   /chat/{session_id}/stream    WebSocket streaming tokens
+WS   /chat/{session_id}/stream    compatibility stream backed by CopilotAgent
 """
 
 from __future__ import annotations
@@ -20,9 +20,11 @@ from ai_testplan_generator.api.deps import (
     get_current_user_ws,
     get_project_repo,
 )
-from ai_testplan_generator.api.errors import AuthError, UnsupportedFeatureError
+from ai_testplan_generator.api.errors import AuthError, NotFoundError, UnsupportedFeatureError
 from ai_testplan_generator.api.errors import ValidationError as ApiValidationError
 from ai_testplan_generator.api.schemas.chat import (
+    ChatContextResponse,
+    ChatPlanContext,
     ChatReply,
     ChatRequest,
     ConfirmRequest,
@@ -32,10 +34,9 @@ from ai_testplan_generator.domain.chat_actions import apply_pending_chat_action
 from ai_testplan_generator.domain.projects import ProjectRepository
 from ai_testplan_generator.domain.users import User
 from ai_testplan_generator.api.security.projects import ensure_project_access
-from ai_testplan_generator.llm.base import ChatMessage
+from ai_testplan_generator.models import TestPlan
 from ai_testplan_generator.pipelines.brain import Brain
 from ai_testplan_generator.pipelines.interactive import InteractivePipeline
-from ai_testplan_generator.telemetry.budget import enforce_project_llm_budget
 
 _log = structlog.get_logger(__name__)
 
@@ -66,6 +67,26 @@ async def _ensure_project_chat_access(
     )
 
 
+def _summarise_plan_context(plan: TestPlan) -> ChatPlanContext:
+    total = len(plan.coverage_matrix)
+    covered = sum(1 for case_ids in plan.coverage_matrix.values() if case_ids)
+    if total == 0:
+        linked_requirement_ids = {
+            req_id for tc in plan.test_cases for req_id in tc.requirement_ids
+        }
+        total = len(linked_requirement_ids)
+        covered = total
+    coverage_percent = round((covered / total) * 100) if total else 0
+    return ChatPlanContext(
+        id=plan.id,
+        title=plan.title,
+        n_test_cases=len(plan.test_cases),
+        covered_requirements=covered,
+        total_requirements=total,
+        coverage_percent=coverage_percent,
+    )
+
+
 @router.post("/chat", response_model=ChatReply, summary="Send a chat message")
 async def chat(
     body: ChatRequest,
@@ -88,6 +109,37 @@ async def chat(
         pending_action_id=reply.pending_action_id,
         pending_action_preview=reply.pending_action_preview,
         unsupported_action=reply.unsupported_action,
+    )
+
+
+@router.get(
+    "/chat/context",
+    response_model=ChatContextResponse,
+    summary="Show the project context available to chat",
+)
+async def chat_context(
+    project_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    brain: Annotated[Brain, Depends(get_brain)],
+    project_repo: Annotated[ProjectRepository, Depends(get_project_repo)],
+) -> ChatContextResponse:
+    await _ensure_project_chat_access(project_id, current_user, project_repo)
+    project = await project_repo.get_project(project_id)
+    if project is None:
+        raise NotFoundError(f"Project '{project_id}' not found.")
+
+    documents = await brain.memory.get_documents_for_project(project_id)
+    requirements = await brain.memory.get_requirements_for_project(project_id)
+    plans = await brain.memory.get_test_plans_for_project(project_id)
+
+    return ChatContextResponse(
+        project_id=project.id,
+        project_name=project.name,
+        industry=project.industry.value,
+        documents=len(documents),
+        requirements=len(requirements),
+        plans=len(plans),
+        latest_plan=_summarise_plan_context(plans[0]) if plans else None,
     )
 
 
@@ -195,10 +247,11 @@ async def chat_stream(
     websocket: WebSocket,
     brain: Annotated[Brain, Depends(get_brain)],
 ) -> None:
-    """WebSocket endpoint for streaming token-by-token responses.
+    """WebSocket endpoint backed by the same CopilotAgent path as POST /chat.
 
-    Loads recent episodic history before each turn so the assistant can
-    reference earlier user/assistant messages in the same session.
+    The UI now uses POST /chat for context-rich replies and pending action
+    metadata. This compatibility endpoint returns the full assistant message as
+    one token-like payload so older callers still get grounded Copilot answers.
     """
     try:
         current_user = await get_current_user_ws(websocket)
@@ -225,34 +278,27 @@ async def chat_stream(
         await _ensure_project_chat_access(
             project_id, current_user, websocket.app.state.project_repo
         )
+        pipeline = _get_pipeline(brain)
+        session = pipeline.session(
+            project_id=project_id,
+            session_id=session_id,
+            user_id=current_user.id,
+        )
         while True:
             message = await websocket.receive_text()
-            await enforce_project_llm_budget(
-                settings=websocket.app.state.settings,
-                project_repo=websocket.app.state.project_repo,
-                project_id=project_id,
+            reply = await session.ask(message)
+            await websocket.send_text(json.dumps({"token": reply.assistant_message}))
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "done": True,
+                        "pending_action": reply.pending_action,
+                        "pending_action_id": reply.pending_action_id,
+                        "pending_action_preview": reply.pending_action_preview,
+                        "unsupported_action": reply.unsupported_action,
+                    }
+                )
             )
-
-            # Build prompt: prior turns from episodic memory + current message.
-            # Cap at 20 message events to keep token usage bounded.
-            history = await brain.memory.episodic.recent(
-                session_id, limit=20, kinds=["message"]
-            )
-            messages: list[ChatMessage] = []
-            for ev in history:
-                role = "user" if ev.actor == "user" else "assistant"
-                messages.append(ChatMessage(role=role, content=ev.content))
-            messages.append(ChatMessage(role="user", content=message))
-
-            full_text: list[str] = []
-            async for token in brain.llm.stream(messages, role="balanced"):
-                full_text.append(token)
-                await websocket.send_text(json.dumps({"token": token}))
-            await brain.memory.log_event(session_id, "user", "message", message)
-            await brain.memory.log_event(
-                session_id, "assistant", "message", "".join(full_text)
-            )
-            await websocket.send_text(json.dumps({"done": True}))
     except WebSocketDisconnect:
         _log.info("ws_disconnected", session_id=session_id)
     except Exception as exc:

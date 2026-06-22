@@ -263,6 +263,25 @@ export interface ChatReply {
   unsupported_action?: string | null;
 }
 
+export interface ChatPlanContext {
+  id: string;
+  title: string;
+  n_test_cases: number;
+  covered_requirements: number;
+  total_requirements: number;
+  coverage_percent: number;
+}
+
+export interface ChatContextSummary {
+  project_id: string;
+  project_name: string;
+  industry: ProjectIndustry;
+  documents: number;
+  requirements: number;
+  plans: number;
+  latest_plan: ChatPlanContext | null;
+}
+
 export interface DeadLetterEntry {
   job_id: string;
   task_name: string;

@@ -31,6 +31,12 @@ data/
 .mypy_cache/
 .ruff_cache/
 
+# Documentation build artifacts
+docs/_build/
+docs/source/reference/generated/
+tmp/
+*.inspect.ndjson
+
 # Internal docs — kept locally, not for the public repo
 DEVELOPMENT_PLAN.md
 INTEGRATION.md

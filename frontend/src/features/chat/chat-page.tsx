@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/components/ui/toast";
-import { confirmAction, getChatHistory, openChatStream, sendChat } from "./api";
+import { confirmAction, getChatContext, getChatHistory, sendChat } from "./api";
 import {
   createSession,
   getSession,
   touchSession,
 } from "@/lib/chat-sessions";
+import type { ChatContextSummary } from "@/lib/api/types";
 
 export interface Citation {
   chunk_id?: string;
@@ -41,13 +43,20 @@ export function ChatPage() {
   const { sessionId } = useParams({ strict: false }) as { sessionId: string };
   const navigate = useNavigate();
   const toast = useToast();
+  const queryClient = useQueryClient();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const session = getSession(sessionId);
   const projectId = session?.projectId;
+  const chatContext = useQuery({
+    queryKey: ["chat-context", projectId],
+    queryFn: () => getChatContext(projectId as string),
+    enabled: Boolean(projectId),
+    staleTime: 10_000,
+  });
 
   const onNewChat = () => {
     if (!projectId) {
@@ -70,10 +79,8 @@ export function ChatPage() {
   }, [messages]);
 
   useEffect(() => {
-    return () => {
-      wsRef.current?.close();
-    };
-  }, []);
+    if (!streaming) inputRef.current?.focus();
+  }, [streaming]);
 
   // Restore conversation on mount or whenever the session id changes.
   useEffect(() => {
@@ -84,10 +91,14 @@ export function ChatPage() {
         const hist = await getChatHistory(sessionId, projectId);
         if (cancelled) return;
         const restored: Message[] = hist.events
-          .filter((e) => e.kind === "message" && (e.actor === "user" || e.actor === "assistant"))
+          .filter(
+            (e) =>
+              e.kind === "message" &&
+              (e.actor === "user" || e.actor === "assistant" || e.actor === "copilot"),
+          )
           .map((e, i) => ({
             id: `h-${i}-${e.ts}`,
-            role: e.actor as "user" | "assistant",
+            role: e.actor === "user" ? "user" : "assistant",
             text: e.content,
           }));
         if (restored.length > 0) setMessages(restored);
@@ -99,57 +110,6 @@ export function ChatPage() {
       cancelled = true;
     };
   }, [projectId, sessionId]);
-
-  const ensureWs = (): WebSocket => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      return wsRef.current;
-    }
-    const ws = openChatStream(sessionId, projectId);
-    wsRef.current = ws;
-    ws.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data) as {
-          token?: string;
-          done?: boolean;
-          error?: string;
-        };
-        if (data.token) {
-          setMessages((msgs) => {
-            const last = msgs[msgs.length - 1];
-            if (!last || !last.streaming) return msgs;
-            const updated: Message = { ...last, text: last.text + data.token };
-            return [...msgs.slice(0, -1), updated];
-          });
-        }
-        if (data.done) {
-          setStreaming(false);
-          setMessages((msgs) => {
-            const last = msgs[msgs.length - 1];
-            if (!last || !last.streaming) return msgs;
-            return [...msgs.slice(0, -1), { ...last, streaming: false }];
-          });
-        }
-        if (data.error) {
-          setStreaming(false);
-          toast.push({ title: "Stream error", description: data.error, tone: "error" });
-        }
-      } catch (e) {
-        toast.push({
-          title: "Bad WebSocket payload",
-          description: (e as Error).message,
-          tone: "error",
-        });
-      }
-    };
-    ws.onerror = () => {
-      toast.push({ title: "WebSocket error", tone: "error" });
-      setStreaming(false);
-    };
-    ws.onclose = () => {
-      wsRef.current = null;
-    };
-    return ws;
-  };
 
   const handleSend = async () => {
     const text = input.trim();
@@ -172,53 +132,38 @@ export function ChatPage() {
     // message and bumps updatedAt so the dashboard list re-orders).
     touchSession(sessionId, text);
 
-    // Slash command path: route to non-streaming HTTP /chat so we capture
-    // pending actions and citations from the structured ChatReply.
-    if (text.startsWith("/")) {
-      try {
-        const reply = await sendChat({
-          session_id: sessionId,
-          project_id: projectId,
-          message: text,
-        });
-        setMessages((m) => {
-          const without = m.slice(0, -1);
-          return [
-            ...without,
-            {
-              id: asstMsg.id,
-              role: "assistant",
-              text: reply.assistant_message,
-              pendingAction: reply.pending_action,
-              pendingActionId: reply.pending_action_id,
-              pendingActionPreview: reply.pending_action_preview,
-              unsupportedAction: reply.unsupported_action,
-            },
-          ];
-        });
-      } catch (e) {
-        toast.push({
-          title: "Command failed",
-          description: (e as Error).message,
-          tone: "error",
-        });
-        setMessages((m) => m.slice(0, -1));
-      }
-      return;
-    }
-
     setStreaming(true);
-    const ws = ensureWs();
-    if (ws.readyState === WebSocket.CONNECTING) {
-      await new Promise<void>((resolve, reject) => {
-        ws.addEventListener("open", () => resolve(), { once: true });
-        ws.addEventListener("error", () => reject(new Error("ws open failed")), { once: true });
-      }).catch(() => {
-        setStreaming(false);
+    try {
+      const reply = await sendChat({
+        session_id: sessionId,
+        project_id: projectId,
+        message: text,
       });
-    }
-    if (ws.readyState === WebSocket.OPEN) {
-      ws.send(text);
+      setMessages((m) => {
+        const without = m.slice(0, -1);
+        return [
+          ...without,
+          {
+            id: asstMsg.id,
+            role: "assistant",
+            text: reply.assistant_message,
+            pendingAction: reply.pending_action,
+            pendingActionId: reply.pending_action_id,
+            pendingActionPreview: reply.pending_action_preview,
+            unsupportedAction: reply.unsupported_action,
+          },
+        ];
+      });
+    } catch (e) {
+      toast.push({
+        title: text.startsWith("/") ? "Command failed" : "Chat failed",
+        description: (e as Error).message,
+        tone: "error",
+      });
+      setMessages((m) => m.slice(0, -1));
+    } finally {
+      setStreaming(false);
+      window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   };
 
@@ -235,6 +180,9 @@ export function ChatPage() {
           unsupportedAction: reply.unsupported_action,
         },
       ]);
+      if (projectId) {
+        void queryClient.invalidateQueries({ queryKey: ["chat-context", projectId] });
+      }
     } catch (e) {
       toast.push({
         title: "Confirm failed",
@@ -267,6 +215,13 @@ export function ChatPage() {
         </Button>
       </div>
 
+      <ChatContextIndicator
+        context={chatContext.data}
+        loading={chatContext.isLoading}
+        error={chatContext.isError}
+        hasProject={Boolean(projectId)}
+      />
+
       <Card className="flex-1 flex flex-col">
         <CardHeader>
           <CardTitle>Conversation</CardTitle>
@@ -290,6 +245,7 @@ export function ChatPage() {
           )}
           <div className="flex gap-2">
             <Input
+              ref={inputRef}
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => {
@@ -353,6 +309,79 @@ export function MessageBubble({
         )}
         {message.unsupportedAction && (
           <UnsupportedActionNotice action={message.unsupportedAction} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ChatContextIndicator({
+  context,
+  loading,
+  error,
+  hasProject,
+}: {
+  context?: ChatContextSummary;
+  loading: boolean;
+  error: boolean;
+  hasProject: boolean;
+}) {
+  if (!hasProject) {
+    return (
+      <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        No project context attached
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="rounded-md border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
+        Loading chat context...
+      </div>
+    );
+  }
+
+  if (error || !context) {
+    return (
+      <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+        Chat context unavailable
+      </div>
+    );
+  }
+
+  const latest = context.latest_plan;
+  return (
+    <div className="rounded-md border border-border bg-surface px-4 py-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-foreground">Chat context</span>
+        <Badge tone="info">{context.project_name}</Badge>
+        <Badge>{context.industry}</Badge>
+        <Badge tone={context.documents > 0 ? "success" : "warning"}>
+          {context.documents} docs
+        </Badge>
+        <Badge tone={context.requirements > 0 ? "success" : "warning"}>
+          {context.requirements} requirements
+        </Badge>
+        <Badge tone={context.plans > 0 ? "success" : "warning"}>
+          {context.plans} plans
+        </Badge>
+      </div>
+      <div className="mt-2 text-xs text-muted-foreground">
+        Latest plan:{" "}
+        {latest ? (
+          <>
+            <span className="font-medium text-foreground">{latest.title}</span>{" "}
+            <span className="font-mono">{latest.id}</span>
+            {" · "}
+            {latest.n_test_cases} test cases
+            {" · "}
+            {latest.covered_requirements}/{latest.total_requirements} requirements covered
+            {" · "}
+            {latest.coverage_percent}%
+          </>
+        ) : (
+          <span className="font-medium text-foreground">none</span>
         )}
       </div>
     </div>

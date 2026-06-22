@@ -1,0 +1,1606 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+\PassOptionsToPackage{dvipsnames,svgnames,x11names}{xcolor}
+\documentclass[
+  french,
+]{report}
+\usepackage{xcolor}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb}
+\setcounter{secnumdepth}{5}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\newenvironment{Shaded}{}{}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.53,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.56,0.13,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.73,0.13,0.13}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.40,0.40,0.40}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.74,0.48,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.73,0.40,0.53}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\usepackage{longtable,booktabs,array}
+\newcounter{none} % for unnumbered tables
+\usepackage{calc} % for calculating minipage widths
+% Correct order of tables after \paragraph or \subparagraph
+\usepackage{etoolbox}
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+% Allow footnotes in longtable head/foot
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+\usepackage{graphicx}
+\makeatletter
+\newsavebox\pandoc@box
+\newcommand*\pandocbounded[1]{% scales image to fit in text height/width
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi% select the smaller of both
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Set default figure placement to htbp
+\def\fps@figure{htbp}
+\makeatother
+\ifLuaTeX
+\usepackage[bidi=basic,shorthands=off]{babel}
+\else
+\usepackage[bidi=default,shorthands=off]{babel}
+\fi
+\ifLuaTeX
+  \usepackage{selnolig} % disable illegal ligatures
+\fi
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={AI Test Plan Generator},
+  pdfauthor={Mohamed Taha El Younsi et Amine Amllal},
+  pdflang={fr},
+  colorlinks=true,
+  linkcolor={blue},
+  filecolor={Maroon},
+  citecolor={Blue},
+  urlcolor={blue},
+  pdfcreator={LaTeX via pandoc}}
+
+\definecolor{PrimaryBlue}{HTML}{0B1F3A}
+\definecolor{AccentBlue}{HTML}{1B6FD8}
+\definecolor{SoftGray}{HTML}{F3F6FA}
+\definecolor{TextGray}{HTML}{4A5568}
+\usepackage{titlesec}
+\titleformat{\chapter}[display]
+  {\normalfont\huge\bfseries\color{PrimaryBlue}\raggedright}
+  {\chaptertitlename\ \thechapter}{16pt}{\Huge}
+\titleformat{\section}
+  {\normalfont\Large\bfseries\color{PrimaryBlue}}
+  {\thesection}{0.8em}{}
+\titleformat{\subsection}
+  {\normalfont\large\bfseries\color{AccentBlue}}
+  {\thesubsection}{0.8em}{}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{\small AI Test Plan Generator}
+\rhead{\small Documentation}
+\cfoot{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+\title{AI Test Plan Generator}
+\author{Mohamed Taha El Younsi et Amine Amllal}
+\date{}
+
+\begin{document}
+
+\begin{titlepage}
+\centering
+\vspace*{0.7cm}
+\includegraphics[width=0.72\textwidth]{../../docs/assets/logo-umi-ensam.png}
+\vspace{1.6cm}
+
+{\Huge\bfseries\color{PrimaryBlue} Documentation de l'application\par}
+\vspace{0.35cm}
+{\LARGE\bfseries AI Test Plan Generator\par}
+\vspace{0.4cm}
+{\large Projet métier -- Génération intelligente de plans de test\par}
+
+\vfill
+
+\begin{tabular}{rl}
+\textbf{Réalisé par :} & Mohamed Taha El Younsi \\
+                       & Amine Amllal \\
+\textbf{Encadré par :} & Pr. Tawfik Masrour \\
+                       & Pr. Ibtissam Elhassani \\
+\textbf{Établissement :} & École Nationale Supérieure d'Arts et Métiers de Meknès \\
+                         & Université Moulay Ismaïl \\
+\end{tabular}
+
+\vfill
+{\large Année universitaire 2025--2026\par}
+\end{titlepage}
+
+{
+\setcounter{tocdepth}{2}
+\tableofcontents
+}
+
+\chapter{Présentation générale}\label{pruxe9sentation-guxe9nuxe9rale}
+
+\textbf{AI Test Plan Generator} est une application web destinée à
+assister les équipes qualité, validation et vérification dans la
+création de plans de test à partir de documents techniques.
+
+L'application permet d'importer des documents de spécification, d'en
+extraire des exigences, de générer des plans de test et des cas de test,
+puis de vérifier la couverture entre les exigences et les tests générés.
+
+Le projet ne se limite pas à une simple interface de discussion avec un
+modèle d'intelligence artificielle. Il s'agit d'une application complète
+comprenant :
+
+\begin{itemize}
+\tightlist
+\item
+  une interface web ;
+\item
+  une API backend ;
+\item
+  une base de données ;
+\item
+  un système d'authentification ;
+\item
+  un pipeline IA multi-agents ;
+\item
+  une gestion documentaire ;
+\item
+  une traçabilité entre documents, exigences et tests ;
+\item
+  un chatbot contextuel ;
+\item
+  un suivi des ressources, du planning et des coûts LLM.
+\end{itemize}
+
+\chapter{Objectifs du projet}\label{objectifs-du-projet}
+
+L'objectif principal du projet est de développer une plateforme capable
+d'assister la génération de plans de test techniques à partir de
+documents d'entrée.
+
+Les objectifs fonctionnels sont les suivants :
+
+\begin{itemize}
+\tightlist
+\item
+  créer et gérer des projets ;
+\item
+  importer des documents techniques ;
+\item
+  analyser les documents importés ;
+\item
+  extraire automatiquement des exigences ;
+\item
+  générer des plans de test structurés ;
+\item
+  générer des cas de test détaillés ;
+\item
+  relier les tests aux exigences sources ;
+\item
+  fournir une matrice de couverture ;
+\item
+  permettre un échange avec un chatbot conscient du contexte du projet ;
+\item
+  offrir un mode interactif de validation des étapes IA ;
+\item
+  suivre les ressources et le planning de test ;
+\item
+  fournir un socle extensible pour de futures améliorations produit.
+\end{itemize}
+
+\chapter{Problématique métier}\label{probluxe9matique-muxe9tier}
+
+Dans de nombreux projets industriels ou logiciels, la préparation des
+plans de test est une tâche longue, manuelle et fortement dépendante de
+l'expertise humaine.
+
+Les principales difficultés sont :
+
+\begin{itemize}
+\tightlist
+\item
+  les exigences sont souvent dispersées dans plusieurs documents ;
+\item
+  les documents techniques peuvent être longs et complexes ;
+\item
+  la création de cas de test est répétitive ;
+\item
+  la traçabilité entre exigences et tests est difficile à maintenir ;
+\item
+  les équipes doivent justifier la couverture des exigences ;
+\item
+  les connaissances projet sont rarement capitalisées correctement ;
+\item
+  les outils génériques d'IA ne conservent pas une structure projet
+  fiable.
+\end{itemize}
+
+Le projet propose donc une solution orientée métier : utiliser l'IA pour
+accélérer la génération, tout en conservant une structure contrôlable,
+traçable et réutilisable.
+
+\chapter{Fonctionnalités
+principales}\label{fonctionnalituxe9s-principales}
+
+\section{Gestion des projets}\label{gestion-des-projets}
+
+L'utilisateur peut créer des projets avec :
+
+\begin{itemize}
+\tightlist
+\item
+  un nom ;
+\item
+  une description ;
+\item
+  un secteur d'activité ;
+\item
+  un budget mensuel LLM ;
+\item
+  des membres et rôles ;
+\item
+  des ressources de planification.
+\end{itemize}
+
+Le secteur d'activité permet d'adapter certains prompts et raisonnements
+de l'IA au contexte du projet.
+
+\section{Import de documents}\label{import-de-documents}
+
+L'application permet d'importer des documents techniques dans un projet.
+Les documents sont ensuite stockés, découpés en morceaux exploitables
+par l'IA, puis utilisés dans le pipeline d'extraction et de génération.
+
+Formats prévus ou supportés selon l'implémentation :
+
+\begin{itemize}
+\tightlist
+\item
+  PDF ;
+\item
+  DOCX ;
+\item
+  Markdown ;
+\item
+  texte ;
+\item
+  fichiers techniques convertibles en texte.
+\end{itemize}
+
+\section{Extraction des exigences}\label{extraction-des-exigences}
+
+Après ingestion des documents, le système extrait des exigences
+structurées. Chaque exigence contient notamment :
+
+\begin{itemize}
+\tightlist
+\item
+  un identifiant ;
+\item
+  un titre ;
+\item
+  un type ;
+\item
+  une priorité ;
+\item
+  une formulation textuelle ;
+\item
+  un lien vers le document source ;
+\item
+  un ou plusieurs chunks sources.
+\end{itemize}
+
+\section{Génération de plans de
+test}\label{guxe9nuxe9ration-de-plans-de-test}
+
+L'utilisateur peut générer un plan de test à partir :
+
+\begin{itemize}
+\tightlist
+\item
+  de toutes les exigences extraites ;
+\item
+  d'une sélection d'exigences ;
+\item
+  d'une réextraction depuis les documents sources.
+\end{itemize}
+
+Le plan généré peut inclure :
+
+\begin{itemize}
+\tightlist
+\item
+  un titre ;
+\item
+  une introduction ;
+\item
+  des objectifs ;
+\item
+  un périmètre ;
+\item
+  une stratégie de test ;
+\item
+  des critères d'entrée et de sortie ;
+\item
+  des risques ;
+\item
+  des cas de test ;
+\item
+  une matrice de couverture ;
+\item
+  un planning si des ressources sont configurées.
+\end{itemize}
+
+\section{Mode interactif}\label{mode-interactif}
+
+Le mode interactif permet à l'utilisateur de valider ou de corriger
+certaines étapes clés du pipeline :
+
+\begin{itemize}
+\tightlist
+\item
+  extraction des exigences ;
+\item
+  architecture du plan ;
+\item
+  génération des cas de test.
+\end{itemize}
+
+Ce mode permet de garder un contrôle humain sur les résultats produits
+par l'IA.
+
+\section{Chatbot contextuel}\label{chatbot-contextuel}
+
+Le chatbot peut répondre aux questions liées au projet. Il utilise le
+contexte disponible :
+
+\begin{itemize}
+\tightlist
+\item
+  projet courant ;
+\item
+  documents importés ;
+\item
+  exigences extraites ;
+\item
+  plans générés ;
+\item
+  cas de test ;
+\item
+  couverture ;
+\item
+  historique récent de conversation.
+\end{itemize}
+
+\chapter{Architecture générale}\label{architecture-guxe9nuxe9rale}
+
+L'application repose sur une architecture full-stack.
+
+\begin{center}
+\fcolorbox{AccentBlue}{SoftGray}{
+\begin{minipage}{0.88\textwidth}
+\centering
+\textbf{Frontend React + TypeScript}\\
+$\downarrow$\\
+\textbf{Backend FastAPI}\\
+$\downarrow$\\
+\textbf{Jobs et tâches longues}\\
+$\downarrow$\\
+\textbf{Pipeline IA multi-agents}\\[0.3cm]
+\begin{tabular}{ccc}
+Mémoire et artefacts & $\leftrightarrow$ & SQLite \\
+Mémoire et artefacts & $\leftrightarrow$ & Stockage documents \\
+Pipeline IA & $\leftrightarrow$ & Fournisseur LLM \\
+\end{tabular}
+\end{minipage}}
+\end{center}
+
+\section{Frontend}\label{frontend}
+
+Le frontend est développé avec React et TypeScript. Il fournit les
+écrans principaux :
+
+\begin{itemize}
+\tightlist
+\item
+  page de connexion ;
+\item
+  liste des projets ;
+\item
+  tableau de bord projet ;
+\item
+  documents ;
+\item
+  exigences ;
+\item
+  génération de plan ;
+\item
+  détail du plan ;
+\item
+  couverture ;
+\item
+  chatbot ;
+\item
+  ressources ;
+\item
+  administration.
+\end{itemize}
+
+\section{Backend}\label{backend}
+
+Le backend est développé avec FastAPI. Il expose les routes nécessaires
+à :
+
+\begin{itemize}
+\tightlist
+\item
+  l'authentification ;
+\item
+  la gestion des projets ;
+\item
+  l'import de documents ;
+\item
+  la génération des plans ;
+\item
+  le suivi des jobs ;
+\item
+  le chatbot ;
+\item
+  la traçabilité ;
+\item
+  la planification ;
+\item
+  l'administration et les coûts.
+\end{itemize}
+
+\section{Stockage}\label{stockage}
+
+En mode local, l'application utilise SQLite pour stocker :
+
+\begin{itemize}
+\tightlist
+\item
+  les utilisateurs ;
+\item
+  les projets ;
+\item
+  les documents ;
+\item
+  les chunks ;
+\item
+  les exigences ;
+\item
+  les plans ;
+\item
+  les cas de test ;
+\item
+  les événements de chat ;
+\item
+  les usages LLM ;
+\item
+  les ressources et plannings.
+\end{itemize}
+
+Les fichiers uploadés sont stockés localement dans un dossier de blobs.
+
+\chapter{Architecture IA et pipeline
+multi-agents}\label{architecture-ia-et-pipeline-multi-agents}
+
+L'IA du projet est organisée sous forme de pipeline multi-agents. Chaque
+agent possède une responsabilité spécifique.
+
+\begin{center}
+\fcolorbox{AccentBlue}{SoftGray}{
+\begin{minipage}{0.86\textwidth}
+\centering
+Documents $\rightarrow$ Analyse documentaire $\rightarrow$ Extraction des exigences\\
+$\rightarrow$ Revue des exigences $\rightarrow$ Architecture du plan\\
+$\rightarrow$ Génération des cas de test $\rightarrow$ Traçabilité\\
+$\rightarrow$ Revue qualité $\rightarrow$ Planification $\rightarrow$ Plan final
+\end{minipage}}
+\end{center}
+
+\section{Agents principaux}\label{agents-principaux}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Agent
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Rôle
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Document Analyst & Analyse le corpus documentaire et en extrait une vue
+globale \\
+Requirement Extractor & Extrait les exigences depuis les chunks de
+documents \\
+Requirement Reviewer & Vérifie la qualité des exigences extraites \\
+Test Architect & Définit la structure globale du plan de test \\
+Test Generator & Génère les cas de test détaillés \\
+Traceability Agent & Relie les cas de test aux exigences \\
+Reviewer & Vérifie la cohérence et la qualité du plan \\
+Planner & Génère un planning si des ressources sont disponibles \\
+Copilot Agent & Répond aux questions utilisateur dans le contexte du
+projet \\
+\end{longtable}
+}
+
+\section{Pourquoi une approche multi-agents
+?}\label{pourquoi-une-approche-multi-agents}
+
+Une approche multi-agents présente plusieurs avantages :
+
+\begin{itemize}
+\tightlist
+\item
+  meilleure séparation des responsabilités ;
+\item
+  prompts plus ciblés ;
+\item
+  débogage plus simple ;
+\item
+  possibilité de réviser chaque étape ;
+\item
+  meilleure lisibilité de la chaîne de génération ;
+\item
+  possibilité d'ajouter ou remplacer un agent sans réécrire tout le
+  système.
+\end{itemize}
+
+\chapter{Gestion des documents et des
+exigences}\label{gestion-des-documents-et-des-exigences}
+
+\section{Ingestion des documents}\label{ingestion-des-documents}
+
+Lorsqu'un document est importé, le backend réalise plusieurs opérations
+:
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  sauvegarde du fichier ;
+\item
+  lecture du contenu ;
+\item
+  découpage en chunks ;
+\item
+  stockage des chunks ;
+\item
+  extraction des exigences ;
+\item
+  association des exigences au projet.
+\end{enumerate}
+
+Les documents volumineux peuvent être traités via des jobs en
+arrière-plan afin d'éviter de bloquer l'interface utilisateur.
+
+\section{Chunks}\label{chunks}
+
+Les chunks représentent des morceaux de documents suffisamment petits
+pour être utilisés dans les appels LLM et la recherche contextuelle.
+
+Chaque chunk peut contenir :
+
+\begin{itemize}
+\tightlist
+\item
+  un identifiant ;
+\item
+  un identifiant de document ;
+\item
+  un texte ;
+\item
+  un type ;
+\item
+  des pages de début et de fin ;
+\item
+  un nombre de tokens.
+\end{itemize}
+
+\section{Exigences}\label{exigences}
+
+Les exigences extraites servent de base à la génération des plans de
+test. Elles permettent de structurer la démarche et d'assurer la
+couverture.
+
+\chapter{Génération des plans de
+test}\label{guxe9nuxe9ration-des-plans-de-test}
+
+La génération d'un plan de test peut être lancée depuis l'interface
+projet.
+
+L'utilisateur peut choisir :
+
+\begin{itemize}
+\tightlist
+\item
+  le niveau de détail ;
+\item
+  le mode d'exigences ;
+\item
+  le mode interactif ou automatique ;
+\item
+  un objectif optionnel.
+\end{itemize}
+
+\section{Objectif de génération}\label{objectif-de-guxe9nuxe9ration}
+
+Le champ objectif permet d'orienter l'agent architecte.
+
+Exemple utile :
+
+\begin{quote}
+Générer un plan de test orienté validation de la sécurité et de
+l'authentification de l'API.
+\end{quote}
+
+Si l'utilisateur ne renseigne pas d'objectif, l'application utilise un
+objectif par défaut :
+
+\begin{quote}
+Générer un plan de test complet à partir des exigences du projet.
+\end{quote}
+
+\section{Résultat généré}\label{ruxe9sultat-guxe9nuxe9ruxe9}
+
+Le résultat est un artefact \texttt{TestPlan} comprenant :
+
+\begin{itemize}
+\tightlist
+\item
+  informations générales ;
+\item
+  objectifs ;
+\item
+  périmètre ;
+\item
+  stratégie ;
+\item
+  risques ;
+\item
+  critères d'entrée ;
+\item
+  critères de sortie ;
+\item
+  cas de test ;
+\item
+  couverture ;
+\item
+  planning éventuel.
+\end{itemize}
+
+\chapter{Traçabilité et
+couverture}\label{trauxe7abilituxe9-et-couverture}
+
+La traçabilité est un point central du projet.
+
+\begin{center}
+\fcolorbox{AccentBlue}{SoftGray}{
+\begin{minipage}{0.82\textwidth}
+\centering
+Document source $\rightarrow$ Chunk $\rightarrow$ Exigence $\rightarrow$ Cas de test $\rightarrow$ Plan de test
+\end{minipage}}
+\end{center}
+
+Le système maintient les liens entre :
+
+\begin{itemize}
+\tightlist
+\item
+  les documents ;
+\item
+  les morceaux de documents ;
+\item
+  les exigences ;
+\item
+  les cas de test ;
+\item
+  les plans.
+\end{itemize}
+
+La couverture permet de répondre aux questions suivantes :
+
+\begin{itemize}
+\tightlist
+\item
+  quelles exigences sont couvertes ?
+\item
+  quelles exigences ne sont pas encore couvertes ?
+\item
+  quels cas de test couvrent une exigence donnée ?
+\item
+  le plan généré couvre-t-il suffisamment le périmètre ?
+\end{itemize}
+
+\chapter{Chatbot contextuel}\label{chatbot-contextuel-1}
+
+Le chatbot n'est pas conçu comme une simple conversation générale. Il
+est intégré au contexte projet.
+
+Il peut utiliser :
+
+\begin{itemize}
+\tightlist
+\item
+  l'identité du projet ;
+\item
+  le secteur d'activité ;
+\item
+  les documents importés ;
+\item
+  les chunks retrouvés par recherche ;
+\item
+  les exigences ;
+\item
+  les plans générés ;
+\item
+  les cas de test ;
+\item
+  la couverture ;
+\item
+  l'historique de conversation.
+\end{itemize}
+
+L'interface affiche un indicateur de contexte afin que l'utilisateur
+sache si le chatbot dispose bien des documents, exigences et plans du
+projet.
+
+Exemples de questions :
+
+\begin{itemize}
+\tightlist
+\item
+  Quelles exigences ne sont pas couvertes par le dernier plan ?
+\item
+  Quels tests devrions-nous ajouter pour améliorer la couverture ?
+\item
+  Résume le périmètre du dernier plan de test.
+\item
+  Quels risques ont été identifiés ?
+\end{itemize}
+
+\chapter{Planification et
+ressources}\label{planification-et-ressources}
+
+Le module de ressources permet de définir des ressources de test
+disponibles pour le projet.
+
+Une ressource contient :
+
+\begin{itemize}
+\tightlist
+\item
+  un nom ;
+\item
+  un service ;
+\item
+  un rôle ;
+\item
+  un pourcentage de disponibilité.
+\end{itemize}
+
+Ces ressources sont utilisées par l'agent de planification afin de
+générer un planning et d'affecter des cas de test à des personnes ou
+services.
+
+Cette fonctionnalité prépare le passage d'un simple générateur de
+documents vers un outil de suivi et d'exécution des tests.
+
+\chapter{Sécurité, authentification et
+rôles}\label{suxe9curituxe9-authentification-et-ruxf4les}
+
+L'application contient un système d'authentification basé sur :
+
+\begin{itemize}
+\tightlist
+\item
+  email ;
+\item
+  mot de passe ;
+\item
+  tokens JWT ;
+\item
+  refresh tokens ;
+\item
+  clés API ;
+\item
+  rôles projet.
+\end{itemize}
+
+Les mots de passe sont hashés côté backend.
+
+Les rôles projet permettent de préparer une séparation entre :
+
+\begin{itemize}
+\tightlist
+\item
+  propriétaire ;
+\item
+  éditeur ;
+\item
+  reviewer ;
+\item
+  viewer.
+\end{itemize}
+
+En mode local ou démonstration, un compte administrateur peut être créé
+avec un script dédié.
+
+\chapter{Suivi des coûts LLM et
+observabilité}\label{suivi-des-couxfbts-llm-et-observabilituxe9}
+
+L'application suit les appels aux modèles de langage.
+
+Les informations suivies peuvent inclure :
+
+\begin{itemize}
+\tightlist
+\item
+  modèle utilisé ;
+\item
+  rôle du modèle ;
+\item
+  tokens d'entrée ;
+\item
+  tokens de sortie ;
+\item
+  coût estimé ;
+\item
+  projet associé ;
+\item
+  session associée.
+\end{itemize}
+
+Ce suivi permet de contrôler l'utilisation des API externes et de
+préparer une gestion budgétaire par projet.
+
+Le projet inclut également des éléments d'observabilité :
+
+\begin{itemize}
+\tightlist
+\item
+  logs structurés ;
+\item
+  métriques Prometheus ;
+\item
+  endpoints de santé ;
+\item
+  support OpenTelemetry selon la configuration.
+\end{itemize}
+
+\chapter{Technologies utilisées}\label{technologies-utilisuxe9es}
+
+\section{Backend}\label{backend-1}
+
+\begin{itemize}
+\tightlist
+\item
+  Python ;
+\item
+  FastAPI ;
+\item
+  Pydantic ;
+\item
+  SQLite ;
+\item
+  aiosqlite ;
+\item
+  LiteLLM ;
+\item
+  LangGraph ;
+\item
+  NetworkX ;
+\item
+  Redis / ARQ selon le mode de déploiement ;
+\item
+  Prometheus / OpenTelemetry.
+\end{itemize}
+
+\section{Frontend}\label{frontend-1}
+
+\begin{itemize}
+\tightlist
+\item
+  React ;
+\item
+  TypeScript ;
+\item
+  Vite ;
+\item
+  TanStack Router ;
+\item
+  TanStack Query ;
+\item
+  Axios ;
+\item
+  Tailwind CSS.
+\end{itemize}
+
+\section{IA et stockage}\label{ia-et-stockage}
+
+\begin{itemize}
+\tightlist
+\item
+  Modèles LLM configurables ;
+\item
+  embeddings NVIDIA possibles ;
+\item
+  mémoire sémantique en mémoire ou backend vectoriel ;
+\item
+  graphe de traçabilité NetworkX ou Neo4j selon configuration ;
+\item
+  stockage local ou S3 pour les documents.
+\end{itemize}
+
+\chapter{Structure du projet}\label{structure-du-projet}
+
+Structure simplifiée :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{ai{-}testplan{-}generator/}
+\NormalTok{+-- src/ai\_testplan\_generator/}
+\NormalTok{|   +-- agents/          Agents IA spécialisés}
+\NormalTok{|   +-- api/             Application FastAPI, routes, sécurité}
+\NormalTok{|   +-- domain/          Repositories et logique métier}
+\NormalTok{|   +-- graphs/          Graphes LangGraph}
+\NormalTok{|   +-- ingestion/       Lecture, chunking, extraction}
+\NormalTok{|   +-- jobs/            Tâches longues et workers}
+\NormalTok{|   +-- llm/             Abstraction fournisseur LLM}
+\NormalTok{|   +-- memory/          Mémoire, vector store, graphe}
+\NormalTok{|   +-- models/          Modèles Pydantic}
+\NormalTok{|   +-- pipelines/       Pipelines autonomes et interactifs}
+\NormalTok{|   +-- quality/         Contrôles qualité}
+\NormalTok{|   `-- telemetry/       Coûts, métriques, logs}
+\NormalTok{+-- frontend/}
+\NormalTok{|   +-- src/}
+\NormalTok{|   |   +-- features/    Modules UI métier}
+\NormalTok{|   |   +-- lib/         Client API et utilitaires}
+\NormalTok{|   |   `-- app/         Layout et routing}
+\NormalTok{+-- tests/               Tests backend}
+\NormalTok{+-- docker{-}compose.yml   Déploiement local Docker}
+\NormalTok{+-- README.md            Guide de lancement}
+\NormalTok{+-- .env.example         Configuration backend}
+\NormalTok{`-- frontend/.env.example Configuration frontend}
+\end{Highlighting}
+\end{Shaded}
+
+\chapter{Installation et lancement
+local}\label{installation-et-lancement-local}
+
+\section{Prérequis}\label{pruxe9requis}
+
+\begin{itemize}
+\tightlist
+\item
+  Python 3.11 ou version compatible ;
+\item
+  Node.js ;
+\item
+  npm ;
+\item
+  Git ;
+\item
+  une clé API LLM selon le fournisseur utilisé ;
+\item
+  éventuellement Docker pour le déploiement conteneurisé.
+\end{itemize}
+
+\section{Installation backend}\label{installation-backend}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{git}\NormalTok{ clone }\OperatorTok{\textless{}}\NormalTok{url{-}du{-}repository}\OperatorTok{\textgreater{}}
+\BuiltInTok{cd}\NormalTok{ ai{-}testplan{-}generator}
+
+\ExtensionTok{python} \AttributeTok{{-}m}\NormalTok{ venv .venv}
+\BuiltInTok{source}\NormalTok{ .venv/bin/activate}
+
+\ExtensionTok{pip}\NormalTok{ install }\AttributeTok{{-}e}\NormalTok{ .}
+\FunctionTok{cp}\NormalTok{ .env.example .env}
+\end{Highlighting}
+\end{Shaded}
+
+Éditer ensuite le fichier \texttt{.env} afin d'ajouter les clés
+nécessaires.
+
+Lancer le backend :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{uvicorn}\NormalTok{ ai\_testplan\_generator.api.app:create\_app }\AttributeTok{{-}{-}factory} \AttributeTok{{-}{-}port}\NormalTok{ 8000}
+\end{Highlighting}
+\end{Shaded}
+
+Si le port \texttt{8000} est déjà utilisé :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{uvicorn}\NormalTok{ ai\_testplan\_generator.api.app:create\_app }\AttributeTok{{-}{-}factory} \AttributeTok{{-}{-}port}\NormalTok{ 8001}
+\end{Highlighting}
+\end{Shaded}
+
+Dans ce cas, il faut aussi adapter la configuration du frontend.
+
+\section{Installation frontend}\label{installation-frontend}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\BuiltInTok{cd}\NormalTok{ frontend}
+\ExtensionTok{npm}\NormalTok{ install}
+\FunctionTok{cp}\NormalTok{ .env.example .env}
+\end{Highlighting}
+\end{Shaded}
+
+Vérifier que \texttt{frontend/.env} pointe vers le bon backend :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{VITE\_API\_BASE\_URL=http://localhost:8000}
+\NormalTok{VITE\_WS\_BASE\_URL=ws://localhost:8000}
+\end{Highlighting}
+\end{Shaded}
+
+Lancer le frontend :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{npm}\NormalTok{ run dev}
+\end{Highlighting}
+\end{Shaded}
+
+Interface disponible par défaut :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{http://localhost:5173}
+\end{Highlighting}
+\end{Shaded}
+
+\chapter{Configuration des variables
+d'environnement}\label{configuration-des-variables-denvironnement}
+
+Le projet utilise des variables d'environnement pour configurer :
+
+\begin{itemize}
+\tightlist
+\item
+  les modèles LLM ;
+\item
+  les clés API ;
+\item
+  la base de données ;
+\item
+  le stockage ;
+\item
+  l'authentification ;
+\item
+  les backends mémoire ;
+\item
+  Redis ;
+\item
+  l'observabilité.
+\end{itemize}
+
+\section{Variables principales
+backend}\label{variables-principales-backend}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+Variable & Description \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{LLM\_MODEL\_SMART} & Modèle utilisé pour les tâches complexes \\
+\texttt{LLM\_MODEL\_BALANCED} & Modèle utilisé pour les tâches
+intermédiaires \\
+\texttt{LLM\_MODEL\_FAST} & Modèle utilisé pour les tâches rapides \\
+\texttt{LLM\_MODEL\_EMBEDDING} & Modèle d'embedding \\
+\texttt{NVIDIA\_API\_KEY} & Clé API NVIDIA si embeddings NVIDIA \\
+\texttt{OPENAI\_API\_KEY} & Clé API OpenAI si utilisée \\
+\texttt{ANTHROPIC\_API\_KEY} & Clé API Anthropic si utilisée \\
+\texttt{GOOGLE\_API\_KEY} & Clé API Google si utilisée \\
+\texttt{APP\_DB\_PATH} & Chemin de la base SQLite \\
+\texttt{BLOB\_STORE\_LOCAL\_ROOT} & Dossier local de stockage des
+documents \\
+\texttt{JWT\_SECRET} & Secret JWT en mode local \\
+\texttt{REDIS\_URL} & URL Redis si utilisée \\
+\texttt{API\_CORS\_ORIGINS} & Origines autorisées \\
+\end{longtable}
+}
+
+\section{Variables principales
+frontend}\label{variables-principales-frontend}
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}ll@{}}
+\toprule\noalign{}
+Variable & Description \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+\texttt{VITE\_API\_BASE\_URL} & URL de l'API backend \\
+\texttt{VITE\_WS\_BASE\_URL} & URL WebSocket backend \\
+\texttt{VITE\_OPENAPI\_URL} & URL du schéma OpenAPI \\
+\end{longtable}
+}
+
+\section{Services externes}\label{services-externes}
+
+Le projet peut utiliser des services externes :
+
+\begin{itemize}
+\tightlist
+\item
+  fournisseur LLM via LiteLLM ;
+\item
+  NVIDIA embeddings ;
+\item
+  Qdrant pour vector store ;
+\item
+  Neo4j pour graphe de traçabilité ;
+\item
+  Redis pour jobs et événements ;
+\item
+  S3 pour stockage documents ;
+\item
+  Prometheus, Grafana, Jaeger pour observabilité.
+\end{itemize}
+
+Pour une remise locale, tous ces services ne sont pas obligatoires. La
+configuration par défaut peut fonctionner avec SQLite, stockage local et
+backends mémoire locaux.
+
+\chapter{Lancement avec Docker}\label{lancement-avec-docker}
+
+Le projet contient un \texttt{docker-compose.yml} permettant de lancer
+plusieurs services.
+
+Commande de base :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{cp}\NormalTok{ .env.example .env}
+\ExtensionTok{docker}\NormalTok{ compose up }\AttributeTok{{-}d} \AttributeTok{{-}{-}build}
+\end{Highlighting}
+\end{Shaded}
+
+Services principaux :
+
+\begin{itemize}
+\tightlist
+\item
+  frontend ;
+\item
+  API backend ;
+\item
+  worker ;
+\item
+  Redis ;
+\item
+  Qdrant ;
+\item
+  Neo4j ;
+\item
+  services d'observabilité optionnels.
+\end{itemize}
+
+Selon la configuration Docker, l'interface peut être disponible sur :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{http://localhost:8080}
+\end{Highlighting}
+\end{Shaded}
+
+L'API peut être disponible sur :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{http://localhost:8000}
+\end{Highlighting}
+\end{Shaded}
+
+Vérification :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{curl}\NormalTok{ http://localhost:8000/healthz}
+\ExtensionTok{curl}\NormalTok{ http://localhost:8000/readyz}
+\end{Highlighting}
+\end{Shaded}
+
+\chapter{Compte de test}\label{compte-de-test}
+
+Pour la démonstration locale actuelle :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Email : admin@example.com}
+\NormalTok{Mot de passe : password123}
+\end{Highlighting}
+\end{Shaded}
+
+Si la base de données est recréée depuis zéro, il faut créer un
+administrateur avec le script :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\ExtensionTok{python}\NormalTok{ scripts/create\_admin.py }\DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}{-}email}\NormalTok{ admin@example.com }\DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}{-}password}\NormalTok{ password123 }\DataTypeTok{\textbackslash{}}
+  \AttributeTok{{-}{-}name} \StringTok{"Admin"}
+\end{Highlighting}
+\end{Shaded}
+
+Pour une remise officielle, il est recommandé de fournir un compte de
+test clair dans un fichier \texttt{DELIVERABLES.md} ou dans le README.
+
+\chapter{Guide d'utilisation}\label{guide-dutilisation}
+
+\section{Connexion}\label{connexion}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Ouvrir l'application dans le navigateur.
+\item
+  Saisir l'email et le mot de passe.
+\item
+  Accéder à la page des projets.
+\end{enumerate}
+
+\section{Création d'un projet}\label{cruxe9ation-dun-projet}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Cliquer sur \texttt{New\ project}.
+\item
+  Renseigner le nom du projet.
+\item
+  Ajouter une description.
+\item
+  Choisir le secteur d'activité.
+\item
+  Valider.
+\end{enumerate}
+
+\section{Import d'un document}\label{import-dun-document}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Ouvrir le projet.
+\item
+  Aller dans la section documents.
+\item
+  Cliquer sur upload.
+\item
+  Sélectionner un fichier technique.
+\item
+  Attendre la fin de l'ingestion.
+\end{enumerate}
+
+Après ingestion, le document et les exigences associées deviennent
+disponibles dans le projet.
+
+\section{Consultation des
+exigences}\label{consultation-des-exigences}
+
+L'utilisateur peut consulter les exigences extraites et sélectionner
+certaines exigences pour une génération ciblée.
+
+\section{Génération d'un plan}\label{guxe9nuxe9ration-dun-plan}
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  Cliquer sur \texttt{Generate\ plan}.
+\item
+  Choisir le niveau de détail.
+\item
+  Choisir la base d'exigences.
+\item
+  Ajouter éventuellement un objectif.
+\item
+  Lancer la génération.
+\end{enumerate}
+
+Le système lance ensuite le pipeline IA.
+
+\section{Mode interactif}\label{mode-interactif-1}
+
+Si le mode interactif est activé, l'utilisateur peut :
+
+\begin{itemize}
+\tightlist
+\item
+  accepter une sortie d'agent ;
+\item
+  demander une correction ;
+\item
+  interrompre le run.
+\end{itemize}
+
+Ce mode est recommandé pour les démonstrations et les cas critiques.
+
+\section{Consultation du plan}\label{consultation-du-plan}
+
+Une fois le plan généré, l'utilisateur peut :
+
+\begin{itemize}
+\tightlist
+\item
+  ouvrir le plan ;
+\item
+  consulter les cas de test ;
+\item
+  voir les exigences couvertes ;
+\item
+  consulter les étapes détaillées ;
+\item
+  exporter le résultat.
+\end{itemize}
+
+\section{Utilisation du chatbot}\label{utilisation-du-chatbot}
+
+Le chatbot peut être utilisé pour poser des questions sur le projet.
+
+Exemples :
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{Quels sont les risques identifiés dans le dernier plan ?}
+\NormalTok{Quelles exigences ne sont pas couvertes ?}
+\NormalTok{Propose des tests supplémentaires pour améliorer la couverture.}
+\NormalTok{Résume la stratégie de test du dernier plan.}
+\end{Highlighting}
+\end{Shaded}
+
+\section{Ajout de ressources}\label{ajout-de-ressources}
+
+Les ressources permettent de préparer la planification :
+
+\begin{enumerate}
+\def\labelenumi{\arabic{enumi}.}
+\tightlist
+\item
+  ouvrir la section ressources ;
+\item
+  ajouter une ressource ;
+\item
+  préciser le service, le rôle et la disponibilité ;
+\item
+  relancer ou planifier le plan.
+\end{enumerate}
+
+\chapter{Livrables disponibles}\label{livrables-disponibles}
+
+Le repository contient déjà plusieurs livrables utiles :
+
+{\def\LTcaptype{none} % do not increment counter
+\begin{longtable}[]{@{}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}
+  >{\raggedright\arraybackslash}p{(\linewidth - 2\tabcolsep) * \real{0.5000}}@{}}
+\toprule\noalign{}
+\begin{minipage}[b]{\linewidth}\raggedright
+Livrable
+\end{minipage} & \begin{minipage}[b]{\linewidth}\raggedright
+Fichier
+\end{minipage} \\
+\midrule\noalign{}
+\endhead
+\bottomrule\noalign{}
+\endlastfoot
+Code source backend & \texttt{src/} \\
+Code source frontend & \texttt{frontend/src/} \\
+Dépendances backend & \texttt{pyproject.toml}, \texttt{uv.lock} \\
+Dépendances frontend & \texttt{frontend/package.json},
+\texttt{frontend/package-lock.json} \\
+README & \texttt{README.md} \\
+Variables d'environnement backend & \texttt{.env.example} \\
+Variables d'environnement frontend & \texttt{frontend/.env.example} \\
+Docker & \texttt{Dockerfile}, \texttt{frontend/Dockerfile},
+\texttt{docker-compose.yml} \\
+Présentation courte & \texttt{SEMESTER\_PROJECT\_PRESENTATION.md} \\
+Documentation application &
+\texttt{DOCUMENTATION\_APPLICATION\_FR.md} \\
+Migrations SQL &
+\texttt{src/ai\_testplan\_generator/}\\
+& \texttt{memory/backends/migrations/} \\
+\end{longtable}
+}
+
+À ajouter ou finaliser avant remise :
+
+\begin{itemize}
+\tightlist
+\item
+  vidéo de présentation ;
+\item
+  export PDF de la présentation ;
+\item
+  archive propre du projet sans secrets ;
+\item
+  éventuellement un fichier \texttt{DELIVERABLES.md}.
+\end{itemize}
+
+\chapter{Limites actuelles}\label{limites-actuelles}
+
+Le projet est fonctionnel pour une démonstration et un prototype avancé,
+mais certaines limites existent :
+
+\begin{itemize}
+\tightlist
+\item
+  SQLite est adapté au local, mais pas idéal pour une production
+  multi-utilisateur ;
+\item
+  les longues ingestions de documents peuvent nécessiter une meilleure
+  expérience utilisateur ;
+\item
+  certaines fonctionnalités sont encore en évolution ;
+\item
+  le listing des anciennes conversations dépend encore en partie du
+  navigateur côté frontend ;
+\item
+  les coûts LLM dépendent d'une table de prix locale qu'il faut
+  maintenir ;
+\item
+  les résultats générés par l'IA doivent toujours être relus par un
+  humain ;
+\item
+  le système doit être davantage testé avec des documents industriels
+  réels.
+\end{itemize}
+
+\chapter{Perspectives
+d'amélioration}\label{perspectives-damuxe9lioration}
+
+Améliorations possibles :
+
+\begin{itemize}
+\tightlist
+\item
+  améliorer l'expérience utilisateur globale ;
+\item
+  renforcer le suivi temps réel des jobs ;
+\item
+  ajouter un véritable historique backend des sessions de chat ;
+\item
+  améliorer la gestion des rôles et permissions ;
+\item
+  intégrer PostgreSQL pour un déploiement plus robuste ;
+\item
+  connecter Qdrant ou pgvector pour une recherche vectorielle
+  persistante ;
+\item
+  connecter Neo4j pour une traçabilité avancée ;
+\item
+  améliorer l'export PDF et Word ;
+\item
+  ajouter un tableau de bord de qualité ;
+\item
+  ajouter des scénarios d'évaluation automatique des plans générés ;
+\item
+  préparer une version déployable en production.
+\end{itemize}
+
+\chapter{Conclusion}\label{conclusion}
+
+Le projet \textbf{AI Test Plan Generator} démontre comment
+l'intelligence artificielle peut être intégrée dans un processus métier
+réel de validation et de test.
+
+Le système permet de passer de documents techniques à des exigences,
+puis à des cas de test et des plans de test traçables.
+
+Le projet met en évidence plusieurs apprentissages importants :
+
+\begin{itemize}
+\tightlist
+\item
+  une application IA ne se limite pas à un prompt ;
+\item
+  la valeur vient de l'intégration entre interface, backend, données et
+  IA ;
+\item
+  la traçabilité est essentielle pour un usage professionnel ;
+\item
+  l'humain doit garder un rôle de validation ;
+\item
+  les artefacts générés doivent être persistés, réutilisables et
+  contrôlables.
+\end{itemize}
+
+Ce projet constitue ainsi une base solide pour un futur assistant
+professionnel de génération et de gestion de plans de test.
+
+\end{document}

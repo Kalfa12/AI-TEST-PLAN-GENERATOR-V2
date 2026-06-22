@@ -32,6 +32,7 @@ from ai_testplan_generator.domain.users import User, UserRepository
 from ai_testplan_generator.llm.base import ChatMessage, LLMResponse, ModelRole
 from ai_testplan_generator.models import DetailLevel, TestPlan as PlanModel
 from ai_testplan_generator.pipelines.brain import Brain
+from tests.conftest import make_document, make_requirement, make_test_case
 
 
 class MutatingCopilotLLM:
@@ -177,6 +178,68 @@ async def _audit_metadata(db_path: str, action_like: str) -> dict[str, Any]:
             row = await cur.fetchone()
     assert row is not None
     return json.loads(row[0])
+
+
+@pytest.mark.asyncio
+async def test_chat_context_summarises_project_artifacts(tmp_path: Path) -> None:
+    user = User(
+        id="usr_chat",
+        email="chat@test.local",
+        display_name="Chat User",
+        is_admin=True,
+    )
+    runtime = await _build_runtime(tmp_path, user)
+    try:
+        project = await runtime.project_repo.create_project(
+            "Chat Context Project",
+            owner_id=user.id,
+        )
+        document = make_document(project_id=project.id, title="System Spec")
+        requirement = make_requirement(
+            project_id=project.id,
+            source_document_id=document.id,
+            statement="The system shall retry transient failures.",
+        )
+        test_case = make_test_case(
+            title="Retry transient failure",
+            requirement_ids=[requirement.id],
+        )
+        plan = PlanModel(
+            id="plan_context",
+            project_id=project.id,
+            title="Context Plan",
+            detail_level=DetailLevel.DETAILED,
+            scope="Retry handling",
+            strategy="Cover the transient failure path.",
+            test_cases=[test_case],
+            coverage_matrix={requirement.id: [test_case.id]},
+        )
+        await runtime.artifact_repo.save_document(document)
+        await runtime.artifact_repo.save_requirements([requirement])
+        await runtime.artifact_repo.save_test_plan(plan)
+
+        response = await runtime.client.get(
+            "/chat/context",
+            params={"project_id": project.id},
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["project_id"] == project.id
+        assert body["project_name"] == "Chat Context Project"
+        assert body["documents"] == 1
+        assert body["requirements"] == 1
+        assert body["plans"] == 1
+        assert body["latest_plan"] == {
+            "id": "plan_context",
+            "title": "Context Plan",
+            "n_test_cases": 1,
+            "covered_requirements": 1,
+            "total_requirements": 1,
+            "coverage_percent": 100,
+        }
+    finally:
+        await runtime.close()
 
 
 @pytest.mark.asyncio

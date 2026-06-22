@@ -24,6 +24,25 @@ class ChatReply(BaseModel):
     unsupported_action: str | None = None
 
 
+class ChatPlanContext(BaseModel):
+    id: str
+    title: str
+    n_test_cases: int
+    covered_requirements: int = 0
+    total_requirements: int = 0
+    coverage_percent: int = 0
+
+
+class ChatContextResponse(BaseModel):
+    project_id: str
+    project_name: str
+    industry: str
+    documents: int = 0
+    requirements: int = 0
+    plans: int = 0
+    latest_plan: ChatPlanContext | None = None
+
+
 class ConfirmRequest(BaseModel):
     confirmed: bool = True
     action_id: str | None = None
