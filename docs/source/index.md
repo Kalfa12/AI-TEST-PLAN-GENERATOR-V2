@@ -67,7 +67,6 @@ operations/troubleshooting
 
 development/repository
 development/testing
-development/documentation
 development/roadmap
 reference/python-api
 ```
