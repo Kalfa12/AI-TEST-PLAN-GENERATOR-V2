@@ -23,7 +23,7 @@ Check:
 - number of chunks;
 - worker status.
 
-For live demos, use smaller documents.
+For presentations or quick validation, use smaller documents.
 
 ## `database is locked`
 

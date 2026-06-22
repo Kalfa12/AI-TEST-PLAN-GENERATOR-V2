@@ -20,7 +20,6 @@ This documentation explains the product, the architecture, the AI workflow, how 
 
 product/overview
 product/features
-product/demo-script
 product/known-limits
 ```
 

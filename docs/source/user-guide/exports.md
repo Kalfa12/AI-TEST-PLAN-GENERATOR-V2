@@ -17,8 +17,8 @@ Good exported reports should include:
 - traceability;
 - coverage information.
 
-## Demo Advice
+## Export Advice
 
-For a live demo, export only after generation has completed and the plan detail page looks correct.
+Export only after generation has completed and the plan detail page looks correct.
 
 If the export has visual layout issues, show the app view instead and keep the PDF as a backup artifact.

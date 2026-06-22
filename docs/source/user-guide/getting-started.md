@@ -28,12 +28,12 @@ The normal user workflow is:
 7. ask the chatbot contextual questions;
 8. export the plan.
 
-## Recommended First Demo
+## Recommended Sample Documents
 
-For a reliable first demo, use the live demo documents in:
+For a first test of the application, use the sample project documents in:
 
 ```text
 docs/live-demo-project-docs/pdf/
 ```
 
-Those files were created for this exact application and are compatible with the general testing knowledge base.
+Those files were created for this application and are compatible with the general testing knowledge base.
