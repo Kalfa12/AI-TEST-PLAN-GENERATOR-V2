@@ -6,6 +6,8 @@ and a full UserRepository backed by the same app SQLite database.
 
 from __future__ import annotations
 
+import base64
+import hashlib
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,8 +16,9 @@ from uuid import uuid4
 
 import aiosqlite
 import structlog
+from cryptography.fernet import Fernet
 
-from ai_testplan_generator.domain.auth import ApiKey
+from ai_testplan_generator.domain.auth import ApiKey, ProviderApiKey
 
 _log = structlog.get_logger(__name__)
 
@@ -53,6 +56,20 @@ CREATE TABLE IF NOT EXISTS token_revocations (
 );
 CREATE INDEX IF NOT EXISTS idx_token_revocations_user ON token_revocations(user_id);
 CREATE INDEX IF NOT EXISTS idx_token_revocations_expires ON token_revocations(expires_at);
+
+CREATE TABLE IF NOT EXISTS provider_keys (
+    id                  TEXT PRIMARY KEY,
+    user_id             TEXT NOT NULL REFERENCES users(id),
+    provider            TEXT NOT NULL,
+    label               TEXT NOT NULL,
+    encrypted_api_key   TEXT NOT NULL,
+    key_tail            TEXT NOT NULL,
+    is_enabled          INTEGER NOT NULL DEFAULT 1,
+    created_at          TEXT NOT NULL,
+    last_used_at        TEXT,
+    revoked_at          TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_provider_keys_user_provider ON provider_keys(user_id, provider);
 """
 
 
@@ -74,13 +91,15 @@ class User:
 class UserRepository:
     """Async SQLite-backed CRUD for users and API keys."""
 
-    def __init__(self, *, db_path: str) -> None:
+    def __init__(self, *, db_path: str, encryption_secret: str | None = None) -> None:
         self._db_path = db_path
+        self._encryption_secret = encryption_secret or "ai-testplan-generator-provider-keys"
         self._conn: aiosqlite.Connection | None = None
+        self._fernet = _build_fernet(self._encryption_secret)
 
     @classmethod
-    async def create(cls, *, db_path: str) -> "UserRepository":
-        repo = cls(db_path=db_path)
+    async def create(cls, *, db_path: str, encryption_secret: str | None = None) -> "UserRepository":
+        repo = cls(db_path=db_path, encryption_secret=encryption_secret)
         await repo._init()
         return repo
 
@@ -123,6 +142,26 @@ class UserRepository:
         await self._db().execute(
             "CREATE INDEX IF NOT EXISTS idx_token_revocations_expires "
             "ON token_revocations(expires_at)"
+        )
+        await self._db().execute(
+            """
+            CREATE TABLE IF NOT EXISTS provider_keys (
+                id                  TEXT PRIMARY KEY,
+                user_id             TEXT NOT NULL REFERENCES users(id),
+                provider            TEXT NOT NULL,
+                label               TEXT NOT NULL,
+                encrypted_api_key   TEXT NOT NULL,
+                key_tail            TEXT NOT NULL,
+                is_enabled          INTEGER NOT NULL DEFAULT 1,
+                created_at          TEXT NOT NULL,
+                last_used_at        TEXT,
+                revoked_at          TEXT
+            )
+            """
+        )
+        await self._db().execute(
+            "CREATE INDEX IF NOT EXISTS idx_provider_keys_user_provider "
+            "ON provider_keys(user_id, provider)"
         )
 
     def _db(self) -> aiosqlite.Connection:
@@ -184,6 +223,24 @@ class UserRepository:
             changed = cur.rowcount
         await self._db().commit()
         return changed > 0
+
+    async def update_user(
+        self,
+        user_id: str,
+        *,
+        email: str,
+        display_name: str,
+    ) -> User | None:
+        ts = datetime.now(timezone.utc).isoformat()
+        async with self._db().execute(
+            "UPDATE users SET email=?, display_name=? WHERE id=? AND disabled_at IS NULL",
+            (email, display_name, user_id),
+        ) as cur:
+            changed = cur.rowcount
+        await self._db().commit()
+        if changed == 0:
+            return None
+        return await self.get_by_id(user_id)
 
     # ------------------------------------------------------------------
     # API Keys
@@ -285,6 +342,112 @@ class UserRepository:
         )
         await self._db().commit()
 
+    # ------------------------------------------------------------------
+    # Provider API keys
+    # ------------------------------------------------------------------
+
+    async def create_provider_key(
+        self,
+        *,
+        user_id: str,
+        provider: str,
+        label: str,
+        api_key: str,
+        is_enabled: bool = True,
+    ) -> ProviderApiKey:
+        provider_key = ProviderApiKey(
+            user_id=user_id,
+            provider=provider.strip().lower(),
+            label=label.strip(),
+            encrypted_api_key=self._encrypt(api_key),
+            key_tail=api_key[-4:] if len(api_key) >= 4 else api_key,
+            is_enabled=is_enabled,
+        )
+        await self._db().execute(
+            "INSERT INTO provider_keys (id, user_id, provider, label, encrypted_api_key, key_tail,"
+            " is_enabled, created_at) VALUES (?,?,?,?,?,?,?,?)",
+            (
+                provider_key.id,
+                provider_key.user_id,
+                provider_key.provider,
+                provider_key.label,
+                provider_key.encrypted_api_key,
+                provider_key.key_tail,
+                1 if provider_key.is_enabled else 0,
+                provider_key.created_at.isoformat(),
+            ),
+        )
+        if is_enabled:
+            await self._disable_other_provider_keys(
+                user_id=user_id,
+                provider=provider_key.provider,
+                keep_id=provider_key.id,
+            )
+        await self._db().commit()
+        return provider_key
+
+    async def get_provider_keys(self, user_id: str) -> list[ProviderApiKey]:
+        async with self._db().execute(
+            "SELECT id,user_id,provider,label,encrypted_api_key,key_tail,is_enabled,created_at,"
+            "last_used_at,revoked_at FROM provider_keys WHERE user_id=? ORDER BY provider,label,created_at",
+            (user_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+        return [_row_to_provider_key(r) for r in rows]
+
+    async def get_provider_key_by_id(self, key_id: str) -> ProviderApiKey | None:
+        async with self._db().execute(
+            "SELECT id,user_id,provider,label,encrypted_api_key,key_tail,is_enabled,created_at,"
+            "last_used_at,revoked_at FROM provider_keys WHERE id=?",
+            (key_id,),
+        ) as cur:
+            row = await cur.fetchone()
+        return _row_to_provider_key(row) if row else None
+
+    async def update_provider_key(
+        self,
+        key_id: str,
+        *,
+        label: str | None = None,
+        is_enabled: bool | None = None,
+    ) -> ProviderApiKey | None:
+        current = await self.get_provider_key_by_id(key_id)
+        if current is None:
+            return None
+        new_label = label.strip() if label is not None else current.label
+        new_enabled = current.is_enabled if is_enabled is None else is_enabled
+        await self._db().execute(
+            "UPDATE provider_keys SET label=?, is_enabled=? WHERE id=?",
+            (new_label, 1 if new_enabled else 0, key_id),
+        )
+        if new_enabled:
+            await self._disable_other_provider_keys(
+                user_id=current.user_id,
+                provider=current.provider,
+                keep_id=key_id,
+            )
+        await self._db().commit()
+        return await self.get_provider_key_by_id(key_id)
+
+    async def revoke_provider_key(self, key_id: str) -> bool:
+        ts = datetime.now(timezone.utc).isoformat()
+        async with self._db().execute(
+            "UPDATE provider_keys SET revoked_at=?, is_enabled=0 WHERE id=? AND revoked_at IS NULL",
+            (ts, key_id),
+        ) as cur:
+            changed = cur.rowcount
+        await self._db().commit()
+        return changed > 0
+
+    async def _disable_other_provider_keys(self, *, user_id: str, provider: str, keep_id: str) -> None:
+        await self._db().execute(
+            "UPDATE provider_keys SET is_enabled=0 WHERE user_id=? AND provider=? AND id<>? AND revoked_at IS NULL",
+            (user_id, provider, keep_id),
+        )
+
+    def _encrypt(self, value: str) -> str:
+        return self._fernet.encrypt(value.encode("utf-8")).decode("utf-8")
+
     async def close(self) -> None:
         if self._conn is not None:
             await self._conn.close()
@@ -319,3 +482,35 @@ def _row_to_api_key(row: Any) -> ApiKey:
         last_used_at=datetime.fromisoformat(last_used_at) if last_used_at else None,
         revoked_at=datetime.fromisoformat(revoked_at) if revoked_at else None,
     )
+
+
+def _row_to_provider_key(row: Any) -> ProviderApiKey:
+    (
+        pid,
+        user_id,
+        provider,
+        label,
+        encrypted_api_key,
+        key_tail,
+        is_enabled,
+        created_at,
+        last_used_at,
+        revoked_at,
+    ) = row
+    return ProviderApiKey(
+        id=pid,
+        user_id=user_id,
+        provider=provider,
+        label=label,
+        encrypted_api_key=encrypted_api_key,
+        key_tail=key_tail,
+        is_enabled=bool(is_enabled),
+        created_at=datetime.fromisoformat(created_at),
+        last_used_at=datetime.fromisoformat(last_used_at) if last_used_at else None,
+        revoked_at=datetime.fromisoformat(revoked_at) if revoked_at else None,
+    )
+
+
+def _build_fernet(secret: str) -> Fernet:
+    digest = hashlib.sha256(secret.encode("utf-8")).digest()
+    return Fernet(base64.urlsafe_b64encode(digest))

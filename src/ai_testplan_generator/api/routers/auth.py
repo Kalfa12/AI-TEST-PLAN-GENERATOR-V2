@@ -17,7 +17,7 @@ import structlog
 from fastapi import APIRouter, Depends
 
 from ai_testplan_generator.api.deps import get_current_user, get_settings, get_user_repo
-from ai_testplan_generator.api.errors import AuthError, NotFoundError
+from ai_testplan_generator.api.errors import AuthError, ConflictError, NotFoundError
 from ai_testplan_generator.api.schemas.auth import (
     AccessTokenResponse,
     ApiKeyCreatedResponse,
@@ -26,8 +26,14 @@ from ai_testplan_generator.api.schemas.auth import (
     LoginRequest,
     LogoutRequest,
     MeResponse,
+    ProviderKeyCreateRequest,
+    ProviderKeyCreatedResponse,
+    ProviderKeyResponse,
+    ProviderKeyUpdateRequest,
     RefreshRequest,
+    RegisterRequest,
     TokenResponse,
+    UpdateMeRequest,
 )
 from ai_testplan_generator.api.security.api_key import (
     build_full_key,
@@ -39,7 +45,7 @@ from ai_testplan_generator.api.security.jwt import (
     encode_refresh_token,
     token_expires_at,
 )
-from ai_testplan_generator.api.security.password import verify_password
+from ai_testplan_generator.api.security.password import hash_password, verify_password
 from ai_testplan_generator.config import Settings
 from ai_testplan_generator.domain.users import User, UserRepository
 
@@ -52,13 +58,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 # Login / token endpoints
 # ---------------------------------------------------------------------------
 
+def _normalize_email(email: str) -> str:
+    return email.strip().lower()
+
+
 @router.post("/login", response_model=TokenResponse, summary="Log in with email and password")
 async def login(
     body: LoginRequest,
     user_repo: Annotated[UserRepository, Depends(get_user_repo)],
     settings: Annotated[Settings, Depends(get_settings)],
 ) -> TokenResponse:
-    user = await user_repo.get_by_email(body.email)
+    user = await user_repo.get_by_email(_normalize_email(body.email))
     if user is None or user.password_hash is None:
         raise AuthError("Invalid credentials.")
     if not user.is_active:
@@ -69,6 +79,32 @@ async def login(
     access_token = encode_access_token(user.id, settings)
     refresh_token = encode_refresh_token(user.id, settings)
     _log.info("auth_login", user_id=user.id)
+    return TokenResponse(access_token=access_token, refresh_token=refresh_token)
+
+
+@router.post(
+    "/register",
+    status_code=201,
+    response_model=TokenResponse,
+    summary="Create an account",
+)
+async def register(
+    body: RegisterRequest,
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TokenResponse:
+    email = _normalize_email(body.email)
+    if await user_repo.get_by_email(email) is not None:
+        raise ConflictError("An account with this email already exists.")
+
+    user = await user_repo.create_user(
+        email=email,
+        display_name=body.display_name.strip(),
+        password_hash=hash_password(body.password),
+    )
+    access_token = encode_access_token(user.id, settings)
+    refresh_token = encode_refresh_token(user.id, settings)
+    _log.info("auth_register", user_id=user.id)
     return TokenResponse(access_token=access_token, refresh_token=refresh_token)
 
 
@@ -206,3 +242,117 @@ async def me(
         is_active=current_user.is_active,
         is_admin=current_user.is_admin,
     )
+
+
+@router.patch("/me", response_model=MeResponse, summary="Update the current profile")
+async def update_me(
+    body: UpdateMeRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+) -> MeResponse:
+    email = _normalize_email(body.email)
+    existing = await user_repo.get_by_email(email)
+    if existing is not None and existing.id != current_user.id:
+        raise ConflictError("An account with this email already exists.")
+    updated = await user_repo.update_user(
+        current_user.id,
+        email=email,
+        display_name=body.display_name.strip(),
+    )
+    if updated is None:
+        raise NotFoundError("User not found.")
+    return MeResponse(
+        id=updated.id,
+        email=updated.email,
+        display_name=updated.display_name,
+        created_at=updated.created_at.isoformat(),
+        is_active=updated.is_active,
+    )
+
+
+def _serialize_provider_key(key: ProviderApiKey) -> ProviderKeyResponse:
+    return ProviderKeyResponse(
+        id=key.id,
+        provider=key.provider,  # type: ignore[arg-type]
+        label=key.label,
+        key_tail=key.key_tail,
+        is_enabled=key.is_enabled,
+        created_at=key.created_at.isoformat(),
+        last_used_at=key.last_used_at.isoformat() if key.last_used_at else None,
+        revoked_at=key.revoked_at.isoformat() if key.revoked_at else None,
+    )
+
+
+@router.get(
+    "/provider-keys",
+    response_model=list[ProviderKeyResponse],
+    summary="List provider API keys",
+)
+async def list_provider_keys(
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+) -> list[ProviderKeyResponse]:
+    keys = await user_repo.get_provider_keys(current_user.id)
+    return [_serialize_provider_key(key) for key in keys]
+
+
+@router.post(
+    "/provider-keys",
+    status_code=201,
+    response_model=ProviderKeyCreatedResponse,
+    summary="Create a provider API key",
+)
+async def create_provider_key(
+    body: ProviderKeyCreateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+) -> ProviderKeyCreatedResponse:
+    key = await user_repo.create_provider_key(
+        user_id=current_user.id,
+        provider=body.provider,
+        label=body.label,
+        api_key=body.api_key,
+        is_enabled=body.is_enabled,
+    )
+    return ProviderKeyCreatedResponse(
+        **_serialize_provider_key(key).model_dump(),
+        api_key=body.api_key,
+    )
+
+
+@router.patch(
+    "/provider-keys/{key_id}",
+    response_model=ProviderKeyResponse,
+    summary="Update a provider API key",
+)
+async def update_provider_key(
+    key_id: str,
+    body: ProviderKeyUpdateRequest,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+) -> ProviderKeyResponse:
+    key = await user_repo.get_provider_key_by_id(key_id)
+    if key is None or key.user_id != current_user.id:
+        raise NotFoundError("Provider key not found.")
+    updated = await user_repo.update_provider_key(
+        key_id,
+        label=body.label,
+        is_enabled=body.is_enabled,
+    )
+    if updated is None:
+        raise NotFoundError("Provider key not found.")
+    return _serialize_provider_key(updated)
+
+
+@router.delete("/provider-keys/{key_id}", status_code=204, summary="Revoke a provider API key")
+async def revoke_provider_key(
+    key_id: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    user_repo: Annotated[UserRepository, Depends(get_user_repo)],
+) -> None:
+    key = await user_repo.get_provider_key_by_id(key_id)
+    if key is None or key.user_id != current_user.id:
+        raise NotFoundError("Provider key not found.")
+    revoked = await user_repo.revoke_provider_key(key_id)
+    if not revoked:
+        raise NotFoundError("Provider key not found.")

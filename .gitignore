@@ -38,6 +38,7 @@ tmp/
 *.inspect.ndjson
 
 # Internal docs — kept locally, not for the public repo
+CLAUDE.md
 DEVELOPMENT_PLAN.md
 INTEGRATION.md
 MODIFICATIONS_LOG.md

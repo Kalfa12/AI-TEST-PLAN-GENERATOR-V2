@@ -8,8 +8,8 @@ from httpx import ASGITransport, AsyncClient
 
 from ai_testplan_generator.api.app import create_app
 from ai_testplan_generator.api.deps import (
-    get_brain,
     get_blob_store,
+    get_brain,
     get_event_broker,
     get_jobs,
     get_plans,
@@ -106,6 +106,41 @@ async def test_login_unknown_email(auth_client: AsyncClient) -> None:
         json={"email": "nobody@example.com", "password": "x"},
     )
     assert r.status_code == 401
+
+
+async def test_register_creates_user_and_returns_tokens(auth_client: AsyncClient) -> None:
+    r = await auth_client.post(
+        "/auth/register",
+        json={
+            "email": "New.User@Example.com",
+            "display_name": "New User",
+            "password": "correct-password",
+        },
+    )
+    assert r.status_code == 201
+    data = r.json()
+    assert "access_token" in data
+    assert "refresh_token" in data
+
+    me = await auth_client.get(
+        "/auth/me", headers={"Authorization": f"Bearer {data['access_token']}"}
+    )
+    assert me.status_code == 200
+    profile = me.json()
+    assert profile["email"] == "new.user@example.com"
+    assert profile["display_name"] == "New User"
+
+
+async def test_register_duplicate_email(auth_client: AsyncClient) -> None:
+    r = await auth_client.post(
+        "/auth/register",
+        json={
+            "email": "admin@example.com",
+            "display_name": "Another Admin",
+            "password": "correct-password",
+        },
+    )
+    assert r.status_code == 409
 
 
 async def test_me_without_token(auth_client: AsyncClient) -> None:
