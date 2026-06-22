@@ -12,7 +12,7 @@ The application is designed for engineering and QA teams that need to:
 - use a contextual chatbot during analysis and review;
 - export and present test results in a professional format.
 
-This documentation explains the product, the architecture, the AI workflow, how to install the system, and how to demonstrate it.
+This documentation explains the product, user workflow, architecture, AI workflow, installation, and deployment.
 
 ```{toctree}
 :maxdepth: 2
@@ -59,14 +59,4 @@ operations/configuration
 operations/docker
 operations/deployment
 operations/troubleshooting
-```
-
-```{toctree}
-:maxdepth: 2
-:caption: Development
-
-development/repository
-development/testing
-development/roadmap
-reference/python-api
 ```

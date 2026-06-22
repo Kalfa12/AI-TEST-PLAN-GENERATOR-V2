@@ -46,7 +46,7 @@ Possible causes:
 - embedding rate limits;
 - network instability.
 
-Use shorter demo documents for presentations.
+Use shorter documents for presentations or quick validation.
 
 ## Chat Has No Context
 

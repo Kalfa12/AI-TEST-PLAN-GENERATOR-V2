@@ -35,4 +35,4 @@ Use the general knowledge base to teach the system how to think.
 
 Use project documents to tell the system what to test.
 
-For a demo, upload methodology documents into the knowledge base first, then upload the EdgeMonitor PDFs into a project.
+For a first project, upload methodology documents into the knowledge base first, then upload project-specific PDFs into the project workspace.

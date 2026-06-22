@@ -1,6 +1,6 @@
-# Known Limits
+# Operational Scope
 
-This project is a strong prototype, but it should not be presented as a finished certified product.
+This page summarizes the practical operating conditions to consider when using the application.
 
 ## External AI Dependency
 
@@ -18,7 +18,7 @@ For a production deployment, use a database architecture designed for concurrent
 
 ## Interactive Runs
 
-Interactive generation is useful for demos and human review, but any in-memory paused state should be treated carefully in production. Persistent checkpointers are recommended for production-grade interactive workflows.
+Interactive generation is useful for human review. For production-grade usage, persistent checkpointers are recommended for long-running interactive workflows.
 
 ## Traceability Quality
 
@@ -30,4 +30,4 @@ The platform builds traceability links, but the quality of those links depends o
 - retrieval configuration;
 - user review.
 
-Traceability should be reviewed by a human before being used for real audit decisions.
+Traceability should be reviewed by a human before formal validation decisions.

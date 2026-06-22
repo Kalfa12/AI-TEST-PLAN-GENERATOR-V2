@@ -33,12 +33,12 @@ test plan
 
 ## Autonomous Mode
 
-Autonomous mode runs the pipeline without stopping for review. It is better for fast demos.
+Autonomous mode runs the pipeline without stopping for review. It is useful when the user wants a fast end-to-end result.
 
 ## Interactive Mode
 
 Interactive mode pauses at selected stages so the user can review and guide the agents.
 
-Use interactive mode when you want to demonstrate human-in-the-loop AI.
+Use interactive mode when you want human-in-the-loop review.
 
 Use autonomous mode when time is limited.

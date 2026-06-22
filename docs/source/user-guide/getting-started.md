@@ -4,7 +4,7 @@
 
 Open the frontend and sign in with a test account.
 
-For a local seeded demo, the usual test account is:
+For a local evaluation setup, the usual test account is:
 
 - Email: `admin@example.com`
 - Password: `password123`
@@ -33,7 +33,7 @@ The normal user workflow is:
 For a first test of the application, use the sample project documents in:
 
 ```text
-docs/live-demo-project-docs/pdf/
+docs/sample-project-docs/pdf/
 ```
 
 Those files were created for this application and are compatible with the general testing knowledge base.

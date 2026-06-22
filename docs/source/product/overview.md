@@ -1,6 +1,6 @@
 # Product Overview
 
-AI Test Plan Generator is a semester project and prototype of an AI-assisted test engineering platform.
+AI Test Plan Generator is an AI-assisted test engineering platform created as a semester project.
 
 The goal is not to replace a QA engineer. The goal is to reduce the time needed to read long technical documents, identify requirements, draft a test strategy, create test cases, and verify coverage.
 
@@ -46,7 +46,7 @@ The main users are:
 - project managers preparing validation plans;
 - AI engineering students demonstrating applied multi-agent systems.
 
-## Current Implementation Scope
+## Implementation Scope
 
 The current project includes:
 
@@ -63,4 +63,4 @@ The current project includes:
 - Docker and Helm deployment assets;
 - observability hooks.
 
-It is best understood as a working prototype moving toward an MVP, not as a finished regulated-industry product.
+The current scope focuses on the complete AI-assisted workflow: document analysis, requirement extraction, plan generation, traceability, contextual chat, and exportable results.
