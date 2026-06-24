@@ -174,7 +174,11 @@ Important groups:
 
 ## Documentation
 
-The project includes a Read the Docs-ready documentation site:
+Published documentation is available on Read the Docs:
+
+https://ai-testplan-generator.readthedocs.io/en/latest/
+
+The documentation source can also be built locally:
 
 ```bash
 pip install -r docs/requirements.txt
@@ -238,4 +242,3 @@ npm run build
 - Long documents can increase processing time and embedding cost.
 - SQLite is suitable for local and project evaluation usage; larger deployments should use a more robust persistence strategy.
 - Traceability and generated test plans should be reviewed by a human before formal validation use.
-
