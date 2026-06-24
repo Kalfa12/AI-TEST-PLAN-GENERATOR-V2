@@ -36,12 +36,18 @@ docs/_build/
 docs/source/reference/generated/
 tmp/
 *.inspect.ndjson
+output/
+outputs/
 
 # Internal docs — kept locally, not for the public repo
 CLAUDE.md
 DEVELOPMENT_PLAN.md
+DOCUMENTATION_APPLICATION_FR.md
 INTEGRATION.md
 MODIFICATIONS_LOG.md
+NEXT_PRODUCT_UPGRADES_ROADMAP.md
+PROJECT_AUDIT_REPORT_2026-06-18.md
+SEMESTER_PROJECT_PRESENTATION.md
 TASKS.md
 presentation.md
 presentation.pdf
@@ -60,3 +66,7 @@ test_req_1.docx
 frontend/node_modules/
 frontend/dist/
 frontend/tsconfig.tsbuildinfo
+frontend/tsconfig.node.tsbuildinfo
+
+# Generated evaluation outputs
+evals/last-report.md
